@@ -1,0 +1,18 @@
+{
+  "senaste_projekt": {
+    "id": "1MrWnJ_zL0Lcwufu1_mk58IJ-5IVp_HI8",
+    "titel": "Te st"
+  },
+  "llm_per_agent": {
+    "stilanalytikern": "claude",
+    "karaktarskartlaggaren": "claude",
+    "dramaturgikonsulten": "claude",
+    "skrivaren": "claude",
+    "bokredaktoren": "claude",
+    "forlаgsredaktoren": "claude",
+    "smaktranaren": "claude",
+    "testlasaren": "claude"
+  },
+  "max_redaktor_varv": 3,
+  "sprak": "sv"
+}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bokverktyg{% if titel %} — {{ titel }}{% endif %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f4f0; color: #1a1a18; min-height: 100vh; }
+    header { background: #fff; border-bottom: 1px solid #e0dfd8; padding: 0 2rem; height: 52px; display: flex; align-items: center; justify-content: space-between; }
+    .header-left { display: flex; align-items: center; gap: 1rem; }
+    .logo { font-size: 15px; font-weight: 600; color: #1a1a18; text-decoration: none; }
+    .back-link { font-size: 13px; color: #666; text-decoration: none; }
+    .back-link:hover { color: #1a1a18; }
+    .projekt-namn { font-size: 14px; color: #444; }
+    main { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 0.5rem; }
+    h2 { font-size: 16px; font-weight: 600; margin-bottom: 1rem; color: #333; }
+    .kort { background: #fff; border: 1px solid #e0dfd8; border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .knapp { display: inline-block; padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; text-decoration: none; transition: background 0.15s; }
+    .knapp-prim { background: #3c3489; color: #fff; }
+    .knapp-prim:hover { background: #2e2870; }
+    .knapp-sek { background: #f0efe8; color: #333; border: 1px solid #ddd; }
+    .knapp-sek:hover { background: #e8e7e0; }
+    .rad { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    input[type=text] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 7px; font-size: 14px; width: 100%; }
+    input[type=text]:focus { outline: none; border-color: #3c3489; }
+    select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff; }
+    .grön { color: #1a7a4a; } .röd { color: #b93333; }
+    .liten { font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <a href="/" class="logo">Bokverktyg</a>
+      {% if visa_tillbaka %}
+      <a href="/huvudmeny" class="back-link">← Alla projekt</a>
+      {% endif %}
+    </div>
+    {% if projekt_namn %}
+    <span class="projekt-namn">{{ projekt_namn }}</span>
+    {% endif %}
+  </header>
+  <main>
+    {% block innehall %}{% endblock %}
+  </main>
+</body>
+</html>
