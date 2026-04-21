@@ -2,6 +2,10 @@ venv/
 .env
 credentials.json
 token.json
+claude_session.json
+config.json
 __pycache__/
 *.pyc
 .playwright/
+debug_sida.html
+_tmp_*.md
