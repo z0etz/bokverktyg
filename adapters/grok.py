@@ -169,7 +169,13 @@ class GrokAdapter:
                 ".response-content"
             ).all()
             if alla_svar:
-                return await alla_svar[-1].inner_text()
+                text = await alla_svar[-1].inner_text()
+                rader = text.split("\n")
+                filtrerade = [
+                    rad for rad in rader
+                    if not rad.strip().lower().startswith("thought for")
+                ]
+                return "\n".join(filtrerade).strip()
         except Exception:
             pass
         return ""
