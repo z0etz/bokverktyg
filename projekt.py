@@ -20,7 +20,7 @@ PROJEKTFILER = [
     "smakprofil.md",
 ]
 
-PROJEKTMAPPAR = ["utkast", "exempeltexter", "agentlogg"]
+PROJEKTMAPPAR = ["utkast", "exempeltexter", "agentlogg", "system"]
 
 
 def hamta_rot(service):
@@ -58,11 +58,11 @@ def ladda_projekt(service, projekt_id, projekt_titel):
         "titel": projekt_titel,
         "filer": filer,
         "mappar": mappar,
+        "system_mapp_id": mappar.get("system"),  # enkel åtkomst
     }
 
     uppdatera_senaste_projekt(projekt_id, projekt_titel)
     return projekt
-
 
 def nytt_projekt(service, titel):
     rot_id = hamta_rot(service)

@@ -92,7 +92,7 @@ MALLAR = {
     ),
 }
 
-UNDERMAPPAR = ["utkast", "exempeltexter", "agentlogg"]
+UNDERMAPPAR = ["utkast", "exempeltexter", "agentlogg", "system"]
 
 
 def get_drive_service():
