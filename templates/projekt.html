@@ -14,7 +14,45 @@
 </button>
 <div id="initiering-status" style="font-size:13px;
      color:var(--color-text-secondary); margin-top:0.5rem;"></div>
-    <a href="#" class="knapp knapp-prim">Skriv</a>
+    <button class="knapp knapp-prim"
+    onclick="visaSkrivDialog('{{ projekt.id }}')">
+Skriv
+</button>
+
+<div id="skriv-dialog" style="display:none; margin-top:1rem;">
+<div class="kort">
+<h2>Skriv</h2>
+<div style="margin-bottom:0.75rem;">
+  <label style="font-size:13px; color:var(--color-text-secondary);">
+    Beskriv vad som ska skrivas:
+  </label>
+  <textarea id="skriv-uppgift"
+            style="width:100%; margin-top:6px; padding:8px 12px;
+                   border:1px solid #ddd; border-radius:7px;
+                   font-size:13px; min-height:80px; resize:vertical;"
+            placeholder="Exempel: Skriv kapitel 12 där Evelina konfronterar sin far...">
+  </textarea>
+</div>
+<div class="rad">
+  <button class="knapp knapp-prim"
+          onclick="startaSkriv('{{ projekt.id }}', false)">
+    Skriv
+  </button>
+  <button class="knapp knapp-sek"
+          onclick="startaSkriv('{{ projekt.id }}', true)">
+    Skriv med full kontext
+  </button>
+  <button class="knapp knapp-sek"
+          onclick="stangSkrivDialog()">
+    Avbryt
+  </button>
+</div>
+<div id="skriv-status"
+     style="font-size:13px; color:var(--color-text-secondary);
+            margin-top:0.75rem;">
+</div>
+</div>
+</div>
     <a href="#" class="knapp knapp-prim">Analysera</a>
     <a href="#" class="knapp knapp-prim">Diskutera</a>
   </div>
@@ -70,6 +108,7 @@ function uppdateraLLM(agent, llm) {
     body: JSON.stringify({agent: agent, llm: llm})
   });
 }
+
 function startaInitiering(projektId) {
   const status = document.getElementById('initiering-status');
   status.textContent = 'Startar initiering...';
@@ -83,6 +122,46 @@ function startaInitiering(projektId) {
     .catch(() => {
       status.textContent = 'Något gick fel -- kolla terminalen.';
     });
+}
+
+function visaSkrivDialog(projektId) {
+  document.getElementById('skriv-dialog').style.display = 'block';
+}
+
+function stangSkrivDialog() {
+  document.getElementById('skriv-dialog').style.display = 'none';
+}
+
+function startaSkriv(projektId, fullKontext) {
+  const uppgift = document.getElementById('skriv-uppgift').value.trim();
+  const status = document.getElementById('skriv-status');
+
+  if (!uppgift) {
+    status.textContent = 'Ange en uppgift först.';
+    return;
+  }
+
+  status.textContent = 'Startar skriv-flödet -- kolla terminalen för status.';
+
+  fetch(`/skriv/${projektId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      uppgift: uppgift,
+      full_kontext: fullKontext
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'startad') {
+      status.textContent = 'Flödet körs -- utkastet sparas i utkast-mappen på Drive när det är klart.';
+    } else {
+      status.textContent = 'Något gick fel -- kolla terminalen.';
+    }
+  })
+  .catch(() => {
+    status.textContent = 'Något gick fel -- kolla terminalen.';
+  });
 }
 </script>
 {% endblock %}

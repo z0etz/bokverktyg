@@ -1,6 +1,6 @@
 import os
 import re
-from drive import read_file, write_file, hamta_fil_id, create_file
+from drive import las_google_doc, uppdatera_google_doc, hamta_fil_id, skapa_google_doc
 
 SYNC_FILNAMN = "skrivaren_senaste_bok.txt"
 
@@ -28,33 +28,21 @@ def _dela_upp_kapitel(boktext: str) -> dict:
 
     return kapitel
 
-
 def ladda_skrivaren_version(service, system_mapp_id: str) -> str:
-    """
-    Laddar skrivarens senast kända bokversion från Drive.
-    Returnerar tom sträng om ingen version finns.
-    """
     fil_id = hamta_fil_id(service, SYNC_FILNAMN, system_mapp_id)
     if not fil_id:
         return ""
     try:
-        return read_file(service, fil_id)
+        return las_google_doc(service, fil_id)
     except Exception:
         return ""
 
-
-def spara_skrivaren_version(service, system_mapp_id: str,
-                             boktext: str):
-    """
-    Sparar hela den aktuella boken som skrivarens senast kända version.
-    Anropas när skrivaren fått hela boken ELLER uppdaterade kapitel.
-    """
+def spara_skrivaren_version(service, system_mapp_id: str, boktext: str):
     fil_id = hamta_fil_id(service, SYNC_FILNAMN, system_mapp_id)
     if fil_id:
-        write_file(service, fil_id, boktext)
+        uppdatera_google_doc(service, fil_id, boktext)
     else:
-        create_file(service, SYNC_FILNAMN, boktext, system_mapp_id)
-
+        skapa_google_doc(service, SYNC_FILNAMN, boktext, system_mapp_id)
 
 def hamta_andrade_kapitel(service, system_mapp_id: str,
                            bok_aktuell: str) -> str:

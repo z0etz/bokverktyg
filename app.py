@@ -123,5 +123,53 @@ def initiering_route(projekt_id):
 
     return jsonify({"status": "startad"})
 
+@app.route("/skriv/<projekt_id>", methods=["POST"])
+def skriv_route(projekt_id):
+    from flows.skriv import kor_skriv_flode
+    import asyncio
+    import threading
+
+    data = request.get_json()
+    uppgift = data.get("uppgift", "").strip()
+    full_kontext = data.get("full_kontext", False)
+
+    if not uppgift:
+        return jsonify({"fel": "Ingen uppgift angiven"}), 400
+
+    service = get_service()
+    config = lас_config()
+    senaste = config.get("senaste_projekt", {})
+    titel = senaste.get("titel", "Okänt projekt")
+    projekt = ladda_projekt(service, projekt_id, titel)
+    llm_installningar = config.get("llm_per_agent", {})
+
+    resultat = {"status": "kör", "utkast": None, "godkant": None}
+
+    def kor():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            res = loop.run_until_complete(
+                kor_skriv_flode(
+                    service, projekt, llm_installningar,
+                    uppgift, full_kontext=full_kontext,
+                )
+            )
+            if res:
+                resultat["utkast"] = res["utkast"]
+                resultat["godkant"] = res["godkant"]
+                resultat["kapitel_namn"] = res["kapitel_namn"]
+            resultat["status"] = "klar"
+        except Exception as e:
+            print(f"Fel i skriv-flödet: {e}")
+            resultat["status"] = "fel"
+        finally:
+            loop.close()
+
+    trad = threading.Thread(target=kor)
+    trad.start()
+
+    return jsonify({"status": "startad"})
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
