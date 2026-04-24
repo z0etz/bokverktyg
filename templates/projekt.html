@@ -53,7 +53,46 @@ Skriv
 </div>
 </div>
 </div>
-    <a href="#" class="knapp knapp-prim">Analysera</a>
+<button class="knapp knapp-prim"
+onclick="visaAnalyseraDialog('{{ projekt.id }}')">
+Analysera
+</button>
+
+<div id="analysera-dialog" style="display:none; margin-top:1rem;">
+<div class="kort">
+<h2>Analysera manuell redigering</h2>
+<div style="margin-bottom:0.75rem;">
+<label style="font-size:13px; color:var(--color-text-secondary);">
+Välj kapitel att analysera:
+</label>
+<select id="analysera-kapitel"
+      style="display:block; margin-top:6px; width:100%;
+             padding:8px 12px; border:1px solid #ddd;
+             border-radius:7px; font-size:13px;">
+<option value="">Laddar...</option>
+</select>
+</div>
+<div class="rad">
+<button class="knapp knapp-prim"
+      onclick="startaAnalysera('{{ projekt.id }}', false)">
+Analysera
+</button>
+<button class="knapp knapp-sek"
+      onclick="stangAnalyseraDialog()">
+Avbryt
+</button>
+</div>
+<div id="analysera-flaggor"
+ style="display:none; margin-top:1rem; padding:12px;
+        background:#fff8e6; border:1px solid #f0c040;
+        border-radius:7px; font-size:13px;">
+</div>
+<div id="analysera-status"
+ style="font-size:13px; color:var(--color-text-secondary);
+        margin-top:0.75rem;">
+</div>
+</div>
+</div>
     <a href="#" class="knapp knapp-prim">Diskutera</a>
   </div>
   <p class="liten" style="margin-top:0.75rem">Flödena aktiveras i kommande milstolpar.</p>
@@ -163,5 +202,77 @@ function startaSkriv(projektId, fullKontext) {
     status.textContent = 'Något gick fel -- kolla terminalen.';
   });
 }
+
+function visaAnalyseraDialog(projektId) {
+  document.getElementById('analysera-dialog').style.display = 'block';
+  const select = document.getElementById('analysera-kapitel');
+  select.innerHTML = '<option value="">Laddar...</option>';
+
+  fetch(`/analysera/utkast/${projektId}`)
+    .then(r => r.json())
+    .then(par => {
+      if (par.length === 0) {
+        select.innerHTML = '<option value="">Inga utkastpar hittades</option>';
+      } else {
+        select.innerHTML = par.map(p =>
+          `<option value="${p.namn}">${p.display}</option>`
+        ).join('');
+      }
+    })
+    .catch(() => {
+      select.innerHTML = '<option value="">Fel vid laddning</option>';
+    });
+}
+
+function stangAnalyseraDialog() {
+  document.getElementById('analysera-dialog').style.display = 'none';
+  document.getElementById('analysera-flaggor').style.display = 'none';
+}
+
+function startaAnalysera(projektId, ignorerаFlaggor) {
+  const kapitel = document.getElementById('analysera-kapitel').value;
+  const status = document.getElementById('analysera-status');
+  const flaggorDiv = document.getElementById('analysera-flaggor');
+
+  if (!kapitel) {
+    status.textContent = 'Välj ett kapitel först.';
+    return;
+  }
+
+  status.textContent = 'Startar analysera-flödet...';
+
+  fetch(`/analysera/${projektId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      kapitel_namn: kapitel,
+      ignorera_flaggor: ignorerаFlaggor,
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'startad') {
+      status.textContent = 'Flödet körs -- kolla terminalen för status.';
+    } else if (data.status === 'flaggat') {
+      flaggorDiv.style.display = 'block';
+      flaggorDiv.innerHTML = `
+        <strong>Förlagsredaktören flaggade problem:</strong><br><br>
+        ${data.flaggor.replace(/\n/g, '<br>')}
+        <br><br>
+        <button class="knapp knapp-sek"
+                onclick="startaAnalysera('${projektId}', true)">
+          Ignorera och fortsätt ändå
+        </button>
+      `;
+      status.textContent = '';
+    } else {
+      status.textContent = 'Något gick fel -- kolla terminalen.';
+    }
+  })
+  .catch(() => {
+    status.textContent = 'Något gick fel -- kolla terminalen.';
+  });
+}
+
 </script>
 {% endblock %}
