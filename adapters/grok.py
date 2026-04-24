@@ -249,21 +249,49 @@ class GrokAdapter:
         if not inmatning:
             return None
 
+        antal_innan = await self._rakna_svar()
+
         await inmatning.click()
         await asyncio.sleep(0.5)
-        await inmatning.type(text, delay=10)
+        await inmatning.fill(text)
+        await asyncio.sleep(0.5)
         await self.sida.keyboard.press("Enter")
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
 
-        for _ in range(timeout):
+        for i in range(timeout):
             await asyncio.sleep(1)
-            if await self._kontrollera_klart():
-                break
+            if await self._kontrollera_klart() and i > 3:
+                antal_efter = await self._rakna_svar()
+                if antal_efter > antal_innan:
+                    break
             if await self._kontrollera_token_fel():
                 self.token_slut = True
                 return None
 
+        antal_efter = await self._rakna_svar()
+        if antal_efter <= antal_innan:
+            print("Grok: Inget nytt svar hittades.")
+            return None
+
         return await self._hamta_senaste_svar()
+
+    async def _rakna_svar(self):
+        """Räknar antalet svar-element på sidan."""
+        try:
+            selectors = [
+                ".message-bubble",
+                "[data-testid='message']",
+                ".response-content",
+                "[class*='response']",
+                "[class*='message']",
+            ]
+            for selector in selectors:
+                antal = await self.sida.locator(selector).count()
+                if antal > 0:
+                    return antal
+        except Exception:
+            pass
+        return 0
 
     async def ladda_upp_kontext(self, text, etikett="Bokkontext"):
         meddelande = (

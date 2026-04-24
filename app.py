@@ -7,7 +7,7 @@ from config import (
     lас_config,
     uppdatera_llm,
 )
-from drive import get_drive_service
+from drive import hamta_drive_tjanst
 from projekt import hamta_dokumentstatus, ladda_projekt, lista_projekt, nytt_projekt
 
 app = Flask(__name__)
@@ -19,7 +19,7 @@ _service = None
 def get_service():
     global _service
     if _service is None:
-        _service = get_drive_service()
+        _service = hamta_drive_tjanst()
     return _service
 
 
@@ -94,6 +94,34 @@ def valj_projekt(projekt_id, projekt_titel):
     ladda_projekt(service, projekt_id, projekt_titel)
     return redirect(url_for("projekt_vy", projekt_id=projekt_id))
 
+@app.route("/initiering/<projekt_id>", methods=["POST"])
+def initiering_route(projekt_id):
+    from flows.initiering import kor_initiering
+    import asyncio
+
+    service = get_service()
+    config = lас_config()
+    senaste = config.get("senaste_projekt", {})
+    titel = senaste.get("titel", "Okänt projekt")
+
+    projekt = ladda_projekt(service, projekt_id, titel)
+    llm_installningar = config.get("llm_per_agent", {})
+
+    def kor():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                kor_initiering(service, projekt, llm_installningar)
+            )
+        finally:
+            loop.close()
+
+    import threading
+    trad = threading.Thread(target=kor)
+    trad.start()
+
+    return jsonify({"status": "startad"})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

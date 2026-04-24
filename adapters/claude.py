@@ -38,6 +38,16 @@ def _hitta_token_tidpunkt(text):
                 return datetime.now() + timedelta(minutes=antal)
     return datetime.now() + timedelta(hours=2)
 
+def _rensa_svar(text):
+    """Tar bort dubblerat prefix som Claude-gränssnittet lägger till."""
+    if not text:
+        return ""
+    rader = text.split("\n")
+    if len(rader) >= 2 and rader[0].strip() == rader[1].strip():
+        return "\n".join(rader[1:]).strip()
+    if rader[0].startswith("Claude responded:"):
+        return "\n".join(rader[1:]).strip()
+    return text.strip()
 
 class ClaudeAdapter:
     def __init__(self):
@@ -100,14 +110,24 @@ class ClaudeAdapter:
         print("Claude: Kunde inte hitta inmatningsfältet!")
         return None
 
+    # async def _kontrollera_klart(self):
+    #     try:
+    #         antal = await self.sida.locator(
+    #             'button[aria-label="Stop"]'
+    #         ).count()
+    #         return antal == 0
+    #     except Exception:
+    #         return True
+
     async def _kontrollera_klart(self):
         try:
             antal = await self.sida.locator(
-                'button[aria-label="Stop"]'
+                'button[aria-label="Give positive feedback"],'
+                'button[aria-label="Give negative feedback"]'
             ).count()
-            return antal == 0
+            return antal > 0
         except Exception:
-            return True
+            return False
 
     async def _kontrollera_token_fel(self):
         try:
@@ -126,18 +146,21 @@ class ClaudeAdapter:
 
     async def _hamta_senaste_svar(self):
         try:
-            svar_element = self.sida.locator(
-                '[data-is-streaming="false"]'
-            ).last
-            return await svar_element.inner_text(timeout=5000)
-        except Exception:
-            pass
-        try:
             alla_svar = await self.sida.locator(
                 ".font-claude-message"
             ).all()
             if alla_svar:
-                return await alla_svar[-1].inner_text()
+                text = await alla_svar[-1].inner_text()
+                return _rensa_svar(text)
+        except Exception:
+            pass
+        try:
+            alla_svar = await self.sida.locator(
+                '[data-is-streaming="false"]'
+            ).all()
+            if alla_svar:
+                text = await alla_svar[-1].inner_text()
+                return _rensa_svar(text)
         except Exception:
             pass
         return ""
@@ -191,6 +214,31 @@ class ClaudeAdapter:
         await self.sida.wait_for_load_state("domcontentloaded", timeout=30000)
         await asyncio.sleep(8)
 
+    # async def skicka_meddelande(self, text, timeout=120):
+    #     inmatning = await self._hitta_inmatning()
+    #     if not inmatning:
+    #         return None
+
+    #     await inmatning.click()
+    #     await asyncio.sleep(0.5)
+
+    #     for rad in text.split("\n"):
+    #         await inmatning.type(rad, delay=10)
+    #         await self.sida.keyboard.press("Shift+Enter")
+
+    #     await self.sida.keyboard.press("Enter")
+    #     await asyncio.sleep(3)
+
+    #     for _ in range(timeout):
+    #         await asyncio.sleep(1)
+    #         if await self._kontrollera_klart():
+    #             break
+    #         if await self._kontrollera_token_fel():
+    #             self.token_slut = True
+    #             return None
+
+    #     return await self._hamta_senaste_svar()
+
     async def skicka_meddelande(self, text, timeout=120):
         inmatning = await self._hitta_inmatning()
         if not inmatning:
@@ -198,23 +246,28 @@ class ClaudeAdapter:
 
         await inmatning.click()
         await asyncio.sleep(0.5)
+        await inmatning.fill(text)
+        await asyncio.sleep(1)
 
-        for rad in text.split("\n"):
-            await inmatning.type(rad, delay=10)
-            await self.sida.keyboard.press("Shift+Enter")
+        skicka_knapp = self.sida.locator('button[aria-label="Send message"]')
+        await skicka_knapp.click()
+        await asyncio.sleep(5)
 
-        await self.sida.keyboard.press("Enter")
-        await asyncio.sleep(3)
-
-        for _ in range(timeout):
+        for i in range(timeout):
             await asyncio.sleep(1)
-            if await self._kontrollera_klart():
+            klart = await self._kontrollera_klart()
+            if i % 10 == 0:
+                print(f"Claude: Väntar... ({i}s) klart={klart}")
+            if klart and i > 3:
+                print(f"Claude: Klar efter {i}s")
                 break
             if await self._kontrollera_token_fel():
                 self.token_slut = True
                 return None
 
-        return await self._hamta_senaste_svar()
+        svar = await self._hamta_senaste_svar()
+        print(f"Claude: Svar längd={len(svar) if svar else 0}")
+        return svar
 
     async def ladda_upp_kontext(self, text, etikett="Bokkontext"):
         meddelande = (

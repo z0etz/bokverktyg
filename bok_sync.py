@@ -1,6 +1,6 @@
 import os
 import re
-from drive import read_file, write_file, get_file_id, create_file
+from drive import read_file, write_file, hamta_fil_id, create_file
 
 SYNC_FILNAMN = "skrivaren_senaste_bok.txt"
 
@@ -34,7 +34,7 @@ def ladda_skrivaren_version(service, system_mapp_id: str) -> str:
     Laddar skrivarens senast kända bokversion från Drive.
     Returnerar tom sträng om ingen version finns.
     """
-    fil_id = get_file_id(service, SYNC_FILNAMN, system_mapp_id)
+    fil_id = hamta_fil_id(service, SYNC_FILNAMN, system_mapp_id)
     if not fil_id:
         return ""
     try:
@@ -49,7 +49,7 @@ def spara_skrivaren_version(service, system_mapp_id: str,
     Sparar hela den aktuella boken som skrivarens senast kända version.
     Anropas när skrivaren fått hela boken ELLER uppdaterade kapitel.
     """
-    fil_id = get_file_id(service, SYNC_FILNAMN, system_mapp_id)
+    fil_id = hamta_fil_id(service, SYNC_FILNAMN, system_mapp_id)
     if fil_id:
         write_file(service, fil_id, boktext)
     else:
@@ -103,5 +103,5 @@ def behover_full_bokuppdatering(service, system_mapp_id: str) -> bool:
     Returnerar True om ingen sparad skrivarversion finns --
     dvs. hela boken måste skickas.
     """
-    fil_id = get_file_id(service, SYNC_FILNAMN, system_mapp_id)
+    fil_id = hamta_fil_id(service, SYNC_FILNAMN, system_mapp_id)
     return fil_id is None

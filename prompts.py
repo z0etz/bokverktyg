@@ -509,10 +509,11 @@ Sammanfatta inte vad du har läst. Ställ inga frågor. Bekräfta bara."""
 
 def skrivare_skriv_prompt(uppgift, kontext, stilguide,
                            karaktarer, dramaturgi, smakprofil=None,
-                           storyline=None, sessions_not=None):
- andrade_kapitel_sektion = ""
-if andrade_kapitel and andrade_kapitel.strip():
-    andrade_kapitel_sektion = f"""
+                           storyline=None, andrade_kapitel=None):
+
+    andrade_kapitel_sektion = ""
+    if andrade_kapitel and andrade_kapitel.strip():
+        andrade_kapitel_sektion = f"""
 ## UPPDATERADE KAPITEL SEDAN FÖRRA UPPGIFTEN
 Användaren har gjort manuella ändringar i följande kapitel.
 Dessa versioner ersätter vad du tidigare fått.
@@ -532,7 +533,9 @@ Ta hänsyn till dessa ändringar i det du nu skriver."""
     if storyline and storyline.strip():
         storyline_sektion = f"""
 ## STORYLINE -- FÖRFATTARENS PLAN
-{storyline}
+{storyline}"""
+
+    return f"""## UPPDATERADE DOKUMENT FÖR DENNA UPPGIFT
 
 ## STILGUIDE
 {stilguide}
@@ -547,7 +550,7 @@ Ta hänsyn till dessa ändringar i det du nu skriver."""
 {kontext}
 {storyline_sektion}
 {smak_sektion}
-{sessions_not_sektion}
+{andrade_kapitel_sektion}
 
 ## UPPGIFT
 {uppgift}
@@ -560,7 +563,6 @@ Skriv den begärda texten nu. Kom ihåg:
 - Skriv på svenska genom hela texten
 - Producera ENDAST texten -- ingen inledning, inga författarnoteringar,
   inga avslutande kommentarer"""
-
 
 def skrivare_full_kontext_prompt(uppgift, boktext, stilguide,
                                   karaktarer, dramaturgi, kontext,

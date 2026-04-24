@@ -1,7 +1,7 @@
-from drive import get_drive_service, skapa_projekt
+from drive import hamta_drive_tjanst, skapa_projekt
 
 print("Ansluter till Google Drive...")
-service = get_drive_service()
+service = hamta_drive_tjanst()
 print("Ansluten!\n")
 
 projekt = skapa_projekt(service, "Min Testbok")

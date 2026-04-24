@@ -239,13 +239,14 @@ class ChatGPTAdapter:
 
         await inmatning.click()
         await asyncio.sleep(0.5)
-        await inmatning.type(text, delay=10)
+        await inmatning.fill(text)
+        await asyncio.sleep(0.5)
         await self.sida.keyboard.press("Enter")
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
 
-        for _ in range(timeout):
+        for i in range(timeout):
             await asyncio.sleep(1)
-            if await self._kontrollera_klart():
+            if await self._kontrollera_klart() and i > 3:
                 break
             if await self._kontrollera_token_fel():
                 self.token_slut = True

@@ -1,8 +1,8 @@
 from drive import (
-    get_drive_service,
-    get_or_create_folder,
-    get_file_id,
-    list_files,
+    hamta_drive_tjanst,
+    hamta_eller_skapa_mapp,
+    hamta_fil_id,
+    lista_filer,
     skapa_projekt,
 )
 from config import lас_config, uppdatera_senaste_projekt
@@ -10,26 +10,26 @@ from config import lас_config, uppdatera_senaste_projekt
 ROT_MAPP = "Bokverktyg"
 
 PROJEKTFILER = [
-    "bok.md",
-    "storyline.md",
-    "stilguide.md",
-    "karaktarer.md",
-    "kontext.md",
-    "dramaturgi.md",
-    "dramaturgi_observationer.md",
-    "smakprofil.md",
+    "bok",
+    "storyline",
+    "stilguide",
+    "karaktarer",
+    "kontext",
+    "dramaturgi",
+    "dramaturgi_observationer",
+    "smakprofil",
 ]
 
 PROJEKTMAPPAR = ["utkast", "exempeltexter", "agentlogg", "system"]
 
 
 def hamta_rot(service):
-    return get_or_create_folder(service, ROT_MAPP)
+    return hamta_eller_skapa_mapp(service, ROT_MAPP)
 
 
 def lista_projekt(service):
     rot_id = hamta_rot(service)
-    mappar = list_files(service, rot_id)
+    mappar = lista_filer(service, rot_id)
     projekt = []
     for mapp in mappar:
         if mapp["name"] != ROT_MAPP:
@@ -43,13 +43,13 @@ def lista_projekt(service):
 def ladda_projekt(service, projekt_id, projekt_titel):
     filer = {}
     for filnamn in PROJEKTFILER:
-        fil_id = get_file_id(service, filnamn, projekt_id)
+        fil_id = hamta_fil_id(service, filnamn, projekt_id)
         if fil_id:
             filer[filnamn] = fil_id
 
     mappar = {}
     for mappnamn in PROJEKTMAPPAR:
-        mapp_id = get_file_id(service, mappnamn, projekt_id)
+        mapp_id = hamta_fil_id(service, mappnamn, projekt_id)
         if mapp_id:
             mappar[mappnamn] = mapp_id
 
