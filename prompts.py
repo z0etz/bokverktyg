@@ -429,9 +429,13 @@ en som väcker känslor, drar in läsare och erbjuder djup bortom underhållning
 """
 
 
-def skrivare_ny_session_prompt(boktext, stilguide, karaktarer,
-                                dramaturgi, kontext, smakprofil=None,
-                                storyline=None):
+def skrivare_ny_session_prompt_med_filer(boktext_filnamn,
+                                          stilguide_filnamn,
+                                          karaktarer_filnamn,
+                                          dramaturgi_filnamn,
+                                          kontext_filnamn,
+                                          smakprofil=None,
+                                          storyline=None):
     smak_sektion = ""
     if smakprofil and smakprofil.strip():
         smak_sektion = f"""
@@ -445,64 +449,35 @@ Dessa väger tyngre än dina egna stilistiska instinkter.
     if storyline and storyline.strip():
         storyline_sektion = f"""
 ## STORYLINE -- FÖRFATTARENS PLAN
-Det här är författarens avsedda riktning för berättelsen.
+Storyline är författarens avsedda riktning för berättelsen.
 Respektera den om inte uppgiften explicit säger något annat.
-
 {storyline}"""
 
-    if boktext and boktext.strip():
-        bok_sektion = f"""## BOKTEXT -- HELA BOKEN HITTILLS
-Läs detta noggrant. Allt du skriver måste passa sömlöst in i den här
-världen -- matchande rytm, röst och karaktärer exakt.
-
-{boktext}"""
-        bok_instruktion = (
-            "En bok finns. Studera den grundligt innan du skriver något."
-        )
-    else:
-        bok_sektion = ""
-        bok_instruktion = (
-            "Det här är en ny bok utan text än. "
-            "Etablera rösten och världen från grunden med hjälp av "
-            "stilguiden, karaktärsdokumentet och storylinen. "
-            "Stilguidens exempelmeningar visar målrösten."
-        )
-
     return f"""Du är en skicklig litterär skrivare som arbetar med en roman.
-Du startar en ny skrivarsession. Din första uppgift är att läsa och
-internalisera alla dokument nedan. Du kommer att få ditt skrivuppdrag
-i nästa meddelande.
+Du startar en ny skrivarsession.
 
-VIKTIGT SPRÅKINSTRUKTION: Hela ditt svar MÅSTE vara skrivet på svenska.
-All narrativ text, dialog, scenbeskrivningar -- allt på svenska.
-Använd inte engelska någonstans i ditt svar.
+De bifogade filerna innehåller:
+- {boktext_filnamn}: Hela boken hittills -- läs noggrant
+- {stilguide_filnamn}: Stilguide -- följ dessa regler slaviskt
+- {karaktarer_filnamn}: Karaktärsdokument -- avvik aldrig från dessa
+- {dramaturgi_filnamn}: Dramaturgisk rapport -- berättelsens tillstånd
+- {kontext_filnamn}: Kontext -- aktiva trådar och nuläge
 
-ABSOLUT REGEL OM TANKSTRECK: Använd aldrig tankstreck som stilgrepp. Detta är ett absolut krav.
-Bindestreck i sammansatta ord är ok.
+ABSOLUT REGEL OM TANKSTRECK: Använd aldrig tankstreck som stilgrepp.
+Bindestreck i sammansatta ord är helt okej.
 
-Ditt mål är att skriva text av genuin litterär kvalitet. Prosa som väcker
+Ditt mål är att skriva text av genuin litterär kvalitet.  Prosa som väcker
 verkliga känslor. Karaktärer vars handlingar uppstår ur deras inre logik.
 Språk som tjänar berättelsen snarare än att dekorera den.
+STILGUIDE -- FÖLJ DESSA REGLER NOGGRANT
+KARAKTÄRER -- AVVIK ALDRIG FRÅN DESSA
+DRAMATURGI -- BERÄTTELSENS NUVARANDE TILLSTÅND
+KONTEXT -- AKTIVA TRÅDAR OCH NULÄGE
 
-{bok_instruktion}
-
-## STILGUIDE -- FÖLJ DESSA REGLER NOGGRANT
-{stilguide}
-
-## KARAKTÄRER -- AVVIK ALDRIG FRÅN DESSA
-{karaktarer}
-
-## DRAMATURGI -- BERÄTTELSENS NUVARANDE TILLSTÅND
-{dramaturgi}
-
-## KONTEXT -- AKTIVA TRÅDAR OCH NULÄGE
-{kontext}
 {storyline_sektion}
 {smak_sektion}
 
-{bok_sektion}
-
-När du har läst allt, svara med endast denna exakta fras:
+När du har läst alla bifogade filer, svara med endast:
 "Redo att skriva. Ge mig uppgiften."
 Sammanfatta inte vad du har läst. Ställ inga frågor. Bekräfta bara."""
 

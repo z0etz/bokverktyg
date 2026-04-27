@@ -197,19 +197,32 @@ def uppdatera_google_doc(service, fil_id, content):
         body={"requests": requests},
     ).execute()
 
-
 def las_google_doc(service, fil_id):
-    """Läser innehållet från ett Google Docs-dokument som ren text."""
-    docs = hamta_docs_tjanst()
-    dokument = docs.documents().get(documentId=fil_id).execute()
-    text = ""
-    for element in dokument["body"]["content"]:
-        if "paragraph" in element:
-            for para_element in element["paragraph"]["elements"]:
-                if "textRun" in para_element:
-                    text += para_element["textRun"]["content"]
-    return text
+    def _las():
+        docs = get_docs_service()
+        dokument = docs.documents().get(documentId=fil_id).execute()
+        text = ""
+        for element in dokument["body"]["content"]:
+            if "paragraph" in element:
+                for para_element in element["paragraph"]["elements"]:
+                    if "textRun" in para_element:
+                        text += para_element["textRun"]["content"]
+        return text
+    return med_retry(_las)
 
+
+def hamta_fil_id(service, name, folder_id):
+    def _hamta():
+        query = (
+            f"name='{name}' and '{folder_id}' in parents"
+            f" and trashed=false"
+        )
+        results = service.files().list(
+            q=query, fields="files(id, name)"
+        ).execute()
+        files = results.get("files", [])
+        return files[0]["id"] if files else None
+    return med_retry(_hamta)
 
 def lista_filer(service, folder_id):
     query = f"'{folder_id}' in parents and trashed=false"
@@ -217,19 +230,6 @@ def lista_filer(service, folder_id):
         q=query, fields="files(id, name)"
     ).execute()
     return results.get("files", [])
-
-
-def hamta_fil_id(service, name, folder_id):
-    query = (
-        f"name='{name}' and '{folder_id}' in parents"
-        f" and trashed=false"
-    )
-    results = service.files().list(
-        q=query, fields="files(id, name)"
-    ).execute()
-    files = results.get("files", [])
-    return files[0]["id"] if files else None
-
 
 def skapa_projekt(service, titel, parent_folder_id=None):
     """Skapar hela projektmappstrukturen på Drive med Google Docs-filer."""
@@ -260,3 +260,18 @@ def skapa_projekt(service, titel, parent_folder_id=None):
 
     print(f"\nProjekt '{titel}' skapat!")
     return projekt
+
+def med_retry(funktion, max_forsok=3, vantan=2):
+    """
+    Kör en funktion och försöker igen vid nätverksfel.
+    """
+    import time
+    for forsok in range(max_forsok):
+        try:
+            return funktion()
+        except Exception as e:
+            if forsok < max_forsok - 1:
+                print(f"Drive: Försök {forsok + 1} misslyckades ({e}), försöker igen...")
+                time.sleep(vantan)
+            else:
+                raise

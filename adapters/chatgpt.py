@@ -269,3 +269,34 @@ class ChatGPTAdapter:
         await self.playwright.stop()
         self.redo = False
         print("ChatGPT: Stängd.")
+
+    async def bifoga_fil(self, innehall, filnamn):
+        """
+        Skapar en temporär fil och laddar upp den till ChatGPT.
+        """
+        import tempfile
+        import os
+
+        tmpfil = os.path.join(
+            tempfile.gettempdir(), filnamn
+        )
+        with open(tmpfil, "w", encoding="utf-8") as f:
+            f.write(innehall)
+
+        try:
+            fil_input = self.sida.locator("input[type='file']").first
+            await fil_input.set_input_files(tmpfil)
+            await asyncio.sleep(2)
+            print(f"ChatGPT: Bifogade fil '{filnamn}'")
+        finally:
+            os.remove(tmpfil)
+
+    async def bifoga_filer(self, dokument):
+        """
+        Bifoga flera dokument som separata filer.
+        dokument: dict med {filnamn: innehall}
+        """
+        for filnamn, innehall in dokument.items():
+            if innehall and innehall.strip():
+                await self.bifoga_fil(innehall, f"{filnamn}.txt")
+                await asyncio.sleep(1)

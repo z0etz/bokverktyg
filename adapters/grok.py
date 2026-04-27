@@ -161,6 +161,25 @@ class GrokAdapter:
             pass
         return False
 
+    # async def _hamta_senaste_svar(self):
+    #     try:
+    #         alla_svar = await self.sida.locator(
+    #             ".message-bubble, "
+    #             "[data-testid='message'], "
+    #             ".response-content"
+    #         ).all()
+    #         if alla_svar:
+    #             text = await alla_svar[-1].inner_text()
+    #             rader = text.split("\n")
+    #             filtrerade = [
+    #                 rad for rad in rader
+    #                 if not rad.strip().lower().startswith("thought for")
+    #             ]
+    #             return "\n".join(filtrerade).strip()
+    #     except Exception:
+    #         pass
+    #     return ""
+
     async def _hamta_senaste_svar(self):
         try:
             alla_svar = await self.sida.locator(
@@ -170,12 +189,8 @@ class GrokAdapter:
             ).all()
             if alla_svar:
                 text = await alla_svar[-1].inner_text()
-                rader = text.split("\n")
-                filtrerade = [
-                    rad for rad in rader
-                    if not rad.strip().lower().startswith("thought for")
-                ]
-                return "\n".join(filtrerade).strip()
+                print(f"Grok debug: hämtade {len(text)} tecken")
+                return text
         except Exception:
             pass
         return ""
@@ -263,6 +278,7 @@ class GrokAdapter:
             if await self._kontrollera_klart() and i > 3:
                 antal_efter = await self._rakna_svar()
                 if antal_efter > antal_innan:
+                    await asyncio.sleep(30)
                     break
             if await self._kontrollera_token_fel():
                 self.token_slut = True
@@ -308,3 +324,101 @@ class GrokAdapter:
         await self.playwright.stop()
         self.redo = False
         print("Grok: Stängd.")
+
+    async def bifoga_fil(self, innehall, filnamn):
+        """
+        Försöker ladda upp fil till Grok.
+        Returnerar True om det lyckades, False annars.
+        """
+        import tempfile
+        import os
+
+        tmpfil = os.path.join(
+            tempfile.gettempdir(), filnamn
+        )
+        with open(tmpfil, "w", encoding="utf-8") as f:
+            f.write(innehall)
+
+        try:
+            fil_input = self.sida.locator("input[type='file']").first
+            if await fil_input.count() == 0:
+                print("Grok: Ingen file input hittad.")
+                return False
+            await fil_input.set_input_files(tmpfil)
+            await asyncio.sleep(2)
+            print(f"Grok: Bifogade fil '{filnamn}'")
+            return True
+        except Exception as e:
+            print(f"Grok: Filuppladdning misslyckades: {e}")
+            return False
+        finally:
+            if os.path.exists(tmpfil):
+                os.remove(tmpfil)
+
+    async def bifoga_filer(self, dokument):
+        """
+        Bifoga flera dokument. Returnerar de som misslyckades
+        som en sammanslagen sträng för fallback-inklistring.
+        """
+        misslyckade = {}
+        for filnamn, innehall in dokument.items():
+            if innehall and innehall.strip():
+                ok = await self.bifoga_fil(innehall, f"{filnamn}.txt")
+                if not ok:
+                    misslyckade[filnamn] = innehall
+                await asyncio.sleep(1)
+        return misslyckade
+    
+    async def _vanta_tills_text_stabil(self, selector, max_vantan=180):
+        """
+        Väntar tills texten i ett element slutar växa.
+        Returnerar den slutliga texten.
+        """
+        forra_langd = 0
+        stabil_raknar = 0
+        
+        for _ in range(max_vantan):
+            await asyncio.sleep(3)
+            try:
+                element = self.sida.locator(selector).last
+                text = await element.inner_text()
+                nu_langd = len(text)
+                
+                if nu_langd == forra_langd and nu_langd > 0:
+                    stabil_raknar += 1
+                    if stabil_raknar >= 3:
+                        print(f"Grok: Text stabil vid {nu_langd} tecken.")
+                        return text
+                else:
+                    stabil_raknar = 0
+                    forra_langd = nu_langd
+            except Exception:
+                pass
+        
+        return None
+
+
+    async def _hamta_senaste_svar(self):
+        selectors = [
+            ".message-bubble",
+            "[data-testid='message']",
+            ".response-content",
+            "[class*='response']",
+            "[class*='assistant']",
+        ]
+        
+        for selector in selectors:
+            try:
+                antal = await self.sida.locator(selector).count()
+                if antal > 0:
+                    text = await self._vanta_tills_text_stabil(selector)
+                    if text:
+                        rader = text.split("\n")
+                        filtrerade = [
+                            rad for rad in rader
+                            if not rad.strip().lower().startswith("thought for")
+                        ]
+                        return "\n".join(filtrerade).strip()
+            except Exception:
+                pass
+        return ""

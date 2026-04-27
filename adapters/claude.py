@@ -214,34 +214,10 @@ class ClaudeAdapter:
         await self.sida.wait_for_load_state("domcontentloaded", timeout=30000)
         await asyncio.sleep(8)
 
-    # async def skicka_meddelande(self, text, timeout=120):
-    #     inmatning = await self._hitta_inmatning()
-    #     if not inmatning:
-    #         return None
-
-    #     await inmatning.click()
-    #     await asyncio.sleep(0.5)
-
-    #     for rad in text.split("\n"):
-    #         await inmatning.type(rad, delay=10)
-    #         await self.sida.keyboard.press("Shift+Enter")
-
-    #     await self.sida.keyboard.press("Enter")
-    #     await asyncio.sleep(3)
-
-    #     for _ in range(timeout):
-    #         await asyncio.sleep(1)
-    #         if await self._kontrollera_klart():
-    #             break
-    #         if await self._kontrollera_token_fel():
-    #             self.token_slut = True
-    #             return None
-
-    #     return await self._hamta_senaste_svar()
-
     async def skicka_meddelande(self, text, timeout=120):
         inmatning = await self._hitta_inmatning()
         if not inmatning:
+            print("Claude: Kunde inte hitta inmatningsfältet.")
             return None
 
         await inmatning.click()
@@ -250,7 +226,12 @@ class ClaudeAdapter:
         await asyncio.sleep(1)
 
         skicka_knapp = self.sida.locator('button[aria-label="Send message"]')
-        await skicka_knapp.click()
+        try:
+            await skicka_knapp.click(timeout=5000)
+        except Exception:
+            print("Claude: Kunde inte klicka på skicka-knappen.")
+            return None
+
         await asyncio.sleep(5)
 
         for i in range(timeout):
@@ -263,7 +244,21 @@ class ClaudeAdapter:
                 break
             if await self._kontrollera_token_fel():
                 self.token_slut = True
+                print("Claude: Token-gräns nådd.")
                 return None
+            if i > 0 and i % 30 == 0:
+                sidtext = await self.sida.inner_text("body")
+                for felord in ["something went wrong", "error", 
+                            "try again", "försök igen",
+                            "overloaded", "hög belastning"]:
+                    if felord in sidtext.lower():
+                        print(f"Claude: Fel detekterat efter {i}s: '{felord}'")
+                        self.senaste_fel = felord
+                        return None
+        else:
+            print(f"Claude: Timeout efter {timeout}s -- inget svar.")
+            self.senaste_fel = "timeout"
+            return None
 
         svar = await self._hamta_senaste_svar()
         print(f"Claude: Svar längd={len(svar) if svar else 0}")
@@ -284,3 +279,34 @@ class ClaudeAdapter:
         await self.playwright.stop()
         self.redo = False
         print("Claude: Stängd.")
+
+    async def bifoga_fil(self, innehall, filnamn):
+        """
+        Skapar en temporär fil och laddar upp den till Claude.
+        """
+        import tempfile
+        import os
+
+        tmpfil = os.path.join(
+            tempfile.gettempdir(), filnamn
+        )
+        with open(tmpfil, "w", encoding="utf-8") as f:
+            f.write(innehall)
+
+        try:
+            fil_input = self.sida.locator("input[type='file']").first
+            await fil_input.set_input_files(tmpfil)
+            await asyncio.sleep(2)
+            print(f"Claude: Bifogade fil '{filnamn}'")
+        finally:
+            os.remove(tmpfil)
+
+    async def bifoga_filer(self, dokument):
+        """
+        Bifoga flera dokument som separata filer.
+        dokument: dict med {filnamn: innehall}
+        """
+        for filnamn, innehall in dokument.items():
+            if innehall and innehall.strip():
+                await self.bifoga_fil(innehall, f"{filnamn}.txt")
+                await asyncio.sleep(1)
