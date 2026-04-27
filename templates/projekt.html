@@ -229,6 +229,8 @@ function stangAnalyseraDialog() {
   document.getElementById('analysera-flaggor').style.display = 'none';
 }
 
+let analyseraPolling = null;
+
 function startaAnalysera(projektId, ignorerаFlaggor) {
   const kapitel = document.getElementById('analysera-kapitel').value;
   const status = document.getElementById('analysera-status');
@@ -240,6 +242,7 @@ function startaAnalysera(projektId, ignorerаFlaggor) {
   }
 
   status.textContent = 'Startar analysera-flödet...';
+  flaggorDiv.style.display = 'none';
 
   fetch(`/analysera/${projektId}`, {
     method: 'POST',
@@ -252,19 +255,10 @@ function startaAnalysera(projektId, ignorerаFlaggor) {
   .then(r => r.json())
   .then(data => {
     if (data.status === 'startad') {
-      status.textContent = 'Flödet körs -- kolla terminalen för status.';
-    } else if (data.status === 'flaggat') {
-      flaggorDiv.style.display = 'block';
-      flaggorDiv.innerHTML = `
-        <strong>Förlagsredaktören flaggade problem:</strong><br><br>
-        ${data.flaggor.replace(/\n/g, '<br>')}
-        <br><br>
-        <button class="knapp knapp-sek"
-                onclick="startaAnalysera('${projektId}', true)">
-          Ignorera och fortsätt ändå
-        </button>
-      `;
-      status.textContent = '';
+      status.textContent = 'Flödet körs...';
+      analyseraPolling = setInterval(() => {
+        pollAnalyseraStatus(projektId);
+      }, 3000);
     } else {
       status.textContent = 'Något gick fel -- kolla terminalen.';
     }
@@ -272,6 +266,37 @@ function startaAnalysera(projektId, ignorerаFlaggor) {
   .catch(() => {
     status.textContent = 'Något gick fel -- kolla terminalen.';
   });
+}
+
+function pollAnalyseraStatus(projektId) {
+  const kapitel = document.getElementById('analysera-kapitel').value;
+  fetch(`/status/${projektId}`)
+    .then(r => r.json())
+    .then(data => {
+      const status = document.getElementById('analysera-status');
+      const flaggorDiv = document.getElementById('analysera-flaggor');
+
+      if (data.status === 'flaggat') {
+        clearInterval(analyseraPolling);
+        flaggorDiv.style.display = 'block';
+        flaggorDiv.innerHTML = `
+          <strong>Förlagsredaktören flaggade problem:</strong><br><br>
+          ${data.flaggor.replace(/\n/g, '<br>')}
+          <br><br>
+          <button class="knapp knapp-sek"
+                  onclick="startaAnalysera('${projektId}', true)">
+            Ignorera och fortsätt ändå
+          </button>
+        `;
+        status.textContent = '';
+      } else if (data.status === 'klar') {
+        clearInterval(analyseraPolling);
+        status.textContent = 'Analysera-flödet klart!';
+      } else if (data.status === 'fel') {
+        clearInterval(analyseraPolling);
+        status.textContent = 'Något gick fel -- kolla terminalen.';
+      }
+    });
 }
 
 </script>

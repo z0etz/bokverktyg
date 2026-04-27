@@ -206,7 +206,7 @@ def analysera_route(projekt_id):
     projekt = ladda_projekt(service, projekt_id, titel)
     llm_installningar = config.get("llm_per_agent", {})
 
-    resultat = {"status": "kör"}
+    _flodes_status[projekt_id] = {"status": "kor"}
 
     def kor():
         loop = asyncio.new_event_loop()
@@ -220,17 +220,24 @@ def analysera_route(projekt_id):
                 )
             )
             if res:
-                resultat.update(res)
-            resultat["status"] = "klar"
+                _flodes_status[projekt_id] = res
+            else:
+                _flodes_status[projekt_id] = {"status": "fel"}
         except Exception as e:
             print(f"Fel i analysera-flödet: {e}")
-            resultat["status"] = "fel"
+            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
         finally:
             loop.close()
 
     trad = threading.Thread(target=kor)
     trad.start()
     return jsonify({"status": "startad"})
+
+_flodes_status = {}
+
+@app.route("/status/<projekt_id>")
+def hamta_status(projekt_id):
+    return jsonify(_flodes_status.get(projekt_id, {"status": "okand"}))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
