@@ -41,6 +41,20 @@ def lista_projekt(service):
 
 
 def ladda_projekt(service, projekt_id, projekt_titel):
+    from config import projekt_byttes
+    import os
+
+    if projekt_byttes(projekt_id):
+        print(f"Projekt byttes -- rensar skrivarens session.")
+        for session_fil in [
+            "claude_session.json",
+            "chatgpt_session.json", 
+            "grok_session.json",
+        ]:
+            if os.path.exists(session_fil):
+                os.remove(session_fil)
+                print(f"  Rensade: {session_fil}")
+                
     filer = {}
     for filnamn in PROJEKTFILER:
         fil_id = hamta_fil_id(service, filnamn, projekt_id)

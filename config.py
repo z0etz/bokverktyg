@@ -5,6 +5,7 @@ CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
     "senaste_projekt": None,
+    "aktuellt_projekt_id": None,
     "llm_per_agent": {
         "stilanalytikern": "claude",
         "karaktarskartlaggaren": "claude",
@@ -55,3 +56,16 @@ def uppdatera_llm(agent, llm):
 def hamta_llm(agent):
     config = lас_config()
     return config["llm_per_agent"].get(agent, "claude")
+
+def projekt_byttes(nytt_projekt_id):
+    """
+    Kollar om projektet byttes sedan senaste körningen.
+    Uppdaterar aktuellt projekt och returnerar True om det byttes.
+    """
+    config = lас_config()
+    gammalt_id = config.get("aktuellt_projekt_id")
+    if gammalt_id != nytt_projekt_id:
+        config["aktuellt_projekt_id"] = nytt_projekt_id
+        spara_config(config)
+        return True
+    return False
