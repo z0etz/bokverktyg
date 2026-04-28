@@ -248,6 +248,7 @@ class ClaudeAdapter:
                 return None
             if i > 0 and i % 30 == 0:
                 sidtext = await self.sida.inner_text("body")
+                print(f"Claude debug sidtext (första 300 tecken): {sidtext[:300]}") #Debug
                 for felord in ["something went wrong", "error", 
                             "try again", "försök igen",
                             "overloaded", "hög belastning"]:

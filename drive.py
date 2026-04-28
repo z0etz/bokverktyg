@@ -199,7 +199,7 @@ def uppdatera_google_doc(service, fil_id, content):
 
 def las_google_doc(service, fil_id):
     def _las():
-        docs = get_docs_service()
+        docs = hamta_docs_tjanst()
         dokument = docs.documents().get(documentId=fil_id).execute()
         text = ""
         for element in dokument["body"]["content"]:

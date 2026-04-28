@@ -271,22 +271,28 @@ class ChatGPTAdapter:
         print("ChatGPT: Stängd.")
 
     async def bifoga_fil(self, innehall, filnamn):
-        """
-        Skapar en temporär fil och laddar upp den till ChatGPT.
-        """
         import tempfile
         import os
-
-        tmpfil = os.path.join(
-            tempfile.gettempdir(), filnamn
-        )
+        tmpfil = os.path.join(tempfile.gettempdir(), filnamn)
         with open(tmpfil, "w", encoding="utf-8") as f:
             f.write(innehall)
-
         try:
             fil_input = self.sida.locator("input[type='file']").first
             await fil_input.set_input_files(tmpfil)
-            await asyncio.sleep(2)
+            await asyncio.sleep(4)
+            
+            for _ in range(15):
+                await asyncio.sleep(1)
+                try:
+                    processing = await self.sida.locator(
+                        "[class*='processing'], [class*='uploading'], "
+                        "[aria-label*='uploading'], [aria-label*='processing']"
+                    ).count()
+                    if processing == 0:
+                        break
+                except Exception:
+                    break
+            
             print(f"ChatGPT: Bifogade fil '{filnamn}'")
         finally:
             os.remove(tmpfil)
@@ -299,4 +305,4 @@ class ChatGPTAdapter:
         for filnamn, innehall in dokument.items():
             if innehall and innehall.strip():
                 await self.bifoga_fil(innehall, f"{filnamn}.txt")
-                await asyncio.sleep(1)
+                await asyncio.sleep(3)
