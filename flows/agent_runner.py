@@ -47,6 +47,7 @@ def rensa_tillstand(service, system_mapp_id):
 async def kor_agent(adapter, prompt, agent_namn,
                      service, system_mapp_id,
                      flode_namn, steg_namn,
+                     projekt_id=None,
                      dokument_att_bifoga=None,
                      extra_context=None):
     """
@@ -70,6 +71,9 @@ async def kor_agent(adapter, prompt, agent_namn,
             )
             prompt = prompt + f"\n\n{extra}"
 
+    if _ar_avbruten(projekt_id if 'projekt_id' in locals() else ""):
+        raise FlodesPausad("Avbrutet av användaren")
+    
     svar = await adapter.skicka_meddelande(prompt)
     senaste_fel = getattr(adapter, 'senaste_fel', None)
     await adapter.stang()
@@ -89,3 +93,11 @@ async def kor_agent(adapter, prompt, agent_namn,
 
     print(f"  {agent_namn}: {len(svar)} tecken mottagna.")
     return svar
+
+def _ar_avbruten(projekt_id):
+    """Kollar om användaren tryckt Avbryt."""
+    try:
+        from app import _avbryt_flaggor
+        return _avbryt_flaggor.get(projekt_id, False)
+    except Exception:
+        return False

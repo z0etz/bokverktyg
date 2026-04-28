@@ -256,5 +256,63 @@ _flodes_status = {}
 def hamta_status(projekt_id):
     return jsonify(_flodes_status.get(projekt_id, {"status": "okand"}))
 
+_avbryt_flaggor = {}
+
+@app.route("/avbryt/<projekt_id>", methods=["POST"])
+def avbryt_route(projekt_id):
+    _avbryt_flaggor[projekt_id] = True
+    _flodes_status[projekt_id] = {"status": "pausad", "fel": "Avbrutet av användaren"}
+    return jsonify({"status": "ok"})
+
+@app.route("/aterupptas/<projekt_id>", methods=["POST"])
+def aterupptas_route(projekt_id):
+    from flows.tillstand import ladda_tillstand
+    service = get_service()
+    config = lас_config()
+    senaste = config.get("senaste_projekt", {})
+    titel = senaste.get("titel", "Okänt projekt")
+    projekt = ladda_projekt(service, projekt_id, titel)
+    
+    tillstand = ladda_tillstand(service, projekt.get("system_mapp_id"))
+    if not tillstand:
+        return jsonify({"status": "inget_tillstand"})
+    
+    _avbryt_flaggor[projekt_id] = False
+    _flodes_status[projekt_id] = {"status": "kor"}
+    
+    flode = tillstand.get("flode")
+    llm_installningar = config.get("llm_per_agent", {})
+    
+    import asyncio, threading
+    
+    def kor():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            if flode == "initiering":
+                from flows.initiering import kor_initiering
+                res = loop.run_until_complete(
+                    kor_initiering(service, projekt, llm_installningar)
+                )
+            else:
+                res = {"klar": True}
+            
+            if res and res.get("pausad"):
+                _flodes_status[projekt_id] = {
+                    "status": "pausad",
+                    "fel": res.get("fel"),
+                    "steg": res.get("steg"),
+                }
+            else:
+                _flodes_status[projekt_id] = {"status": "klar"}
+        except Exception as e:
+            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
+        finally:
+            loop.close()
+    
+    trad = threading.Thread(target=kor)
+    trad.start()
+    return jsonify({"status": "startad"})
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

@@ -4,59 +4,56 @@
 {% block innehall %}
 <h1>{{ projekt.titel }}</h1>
 
-<div class="kort">
-  <div class="flodes-knappar rad">
-    <button class="knapp flodes-knapp active" onclick="visaFlode('initiering', this)">Initiera</button>
-    <button class="knapp flodes-knapp" onclick="visaFlode('skriv', this)">Skriv</button>
-    <button class="knapp flodes-knapp" onclick="visaFlode('analysera', this)">Analysera</button>
-    <button class="knapp flodes-knapp" onclick="visaFlode('diskutera', this)">Diskutera</button>
+<div class="flik-kort">
+  <div class="flik-rad">
+    <button class="flik active" onclick="visaFlode('initiering', this)">Initiera</button>
+    <button class="flik" onclick="visaFlode('skriv', this)">Skriv</button>
+    <button class="flik" onclick="visaFlode('analysera', this)">Analysera</button>
+    <button class="flik" onclick="visaFlode('diskutera', this)">Diskutera</button>
   </div>
 
-  <div id="flode-initiering" class="flodes-panel">
-    <div class="rad" style="margin-top:1rem;">
-      <button class="knapp knapp-prim"
-              onclick="startaInitiering('{{ projekt.id }}', 'full')">
-        Full initiering
-      </button>
-      <button class="knapp knapp-sek"
-              onclick="startaInitiering('{{ projekt.id }}', 'stilanalytiker')">
-        Stilanalytikern
-      </button>
-      <button class="knapp knapp-sek"
-              onclick="startaInitiering('{{ projekt.id }}', 'karaktarskartlaggare')">
-        Karaktärskartläggaren
-      </button>
-      <button class="knapp knapp-sek"
-              onclick="startaInitiering('{{ projekt.id }}', 'dramaturgikonsult')">
-        Dramaturgikonsulten
-      </button>
+  <div class="flik-innehall">
+    <div id="flode-initiering" class="flodes-panel">
+      <div class="rad">
+        <button class="knapp knapp-prim"
+                onclick="startaFlode('initiering', 'full')">
+          Full initiering
+        </button>
+        <button class="knapp knapp-prim"
+                onclick="startaFlode('initiering', 'stilanalytiker')">
+          Stilanalytikern
+        </button>
+        <button class="knapp knapp-prim"
+                onclick="startaFlode('initiering', 'karaktarskartlaggare')">
+          Karaktärskartläggaren
+        </button>
+        <button class="knapp knapp-prim"
+                onclick="startaFlode('initiering', 'dramaturgikonsult')">
+          Dramaturgikonsulten
+        </button>
+      </div>
     </div>
-  </div>
 
-  <div id="flode-skriv" class="flodes-panel" style="display:none;">
-    <div style="margin-top:1rem;">
+    <div id="flode-skriv" class="flodes-panel" style="display:none;">
       <label class="liten">Beskriv vad som ska skrivas:</label>
       <textarea id="skriv-uppgift"
                 style="width:100%; margin-top:6px; padding:8px 12px;
                        border:1px solid #ddd; border-radius:7px;
                        font-size:13px; min-height:80px; resize:vertical;"
-                placeholder="Exempel: Skriv kapitel 12 där Evelina konfronterar sin far...">
-      </textarea>
+                placeholder="Exempel: Skriv kapitel 12..."></textarea>
       <div class="rad" style="margin-top:0.75rem;">
         <button class="knapp knapp-prim"
-                onclick="startaSkriv('{{ projekt.id }}', false)">
+                onclick="startaFlode('skriv', false)">
           Skriv
         </button>
-        <button class="knapp knapp-sek"
-                onclick="startaSkriv('{{ projekt.id }}', true)">
+        <button class="knapp knapp-prim"
+                onclick="startaFlode('skriv', true)">
           Skriv med full kontext
         </button>
       </div>
     </div>
-  </div>
 
-  <div id="flode-analysera" class="flodes-panel" style="display:none;">
-    <div style="margin-top:1rem;">
+    <div id="flode-analysera" class="flodes-panel" style="display:none;">
       <label class="liten">Välj kapitel att analysera:</label>
       <select id="analysera-kapitel"
               style="display:block; margin-top:6px; width:100%;
@@ -71,28 +68,36 @@
       </div>
       <div class="rad" style="margin-top:0.75rem;">
         <button class="knapp knapp-prim"
-                onclick="startaAnalysera('{{ projekt.id }}', false)">
+                onclick="startaFlode('analysera', false)">
           Analysera
         </button>
       </div>
     </div>
-  </div>
 
-  <div id="flode-diskutera" class="flodes-panel" style="display:none;">
-    <div style="margin-top:1rem;">
+    <div id="flode-diskutera" class="flodes-panel" style="display:none;">
       <p class="liten">Diskutera-flödet kommer i nästa milstolpe.</p>
+    </div>
+
+    <div class="rad" style="margin-top:1rem; padding-top:0.75rem;
+                             border-top:1px solid #f0efe8;">
+      <button id="avbryt-knapp" class="knapp knapp-sek"
+              onclick="hanteraAvbrytAtervuppta()">
+        Avbryt
+      </button>
     </div>
   </div>
 </div>
 
 <div class="kort" id="statuslogg-kort" style="display:none;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+  <div style="display:flex; justify-content:space-between;
+              align-items:center; margin-bottom:0.5rem;">
     <h2 style="margin:0;">Statuslogg</h2>
-    <button class="knapp knapp-sek" style="padding:4px 10px; font-size:12px;"
+    <button class="knapp knapp-sek"
+            style="padding:4px 10px; font-size:12px;"
             onclick="rensaLogg()">Rensa</button>
   </div>
   <div id="statuslogg"
-       style="font-size:12px; font-family:var(--font-mono, monospace);
+       style="font-size:12px; font-family:monospace;
               max-height:180px; overflow-y:auto;
               background:#f8f8f6; border-radius:6px;
               padding:10px 12px; line-height:1.8;">
@@ -142,129 +147,206 @@
 </div>
 
 <style>
-.flodes-knappar { gap: 6px; }
-.flodes-knapp {
-  background: #f0efe8;
-  color: #333;
-  border: 1px solid #ddd;
+.flik-kort {
+  background: #fff;
+  border: 1px solid #e0dfd8;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.flik-rad {
+  display: flex;
+  border-bottom: 1px solid #e0dfd8;
+  background: #f8f7f3;
+}
+.flik {
+  padding: 10px 20px;
   font-size: 13px;
   font-weight: 500;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  margin-bottom: -1px;
+  border-radius: 0;
+  transition: all 0.15s;
 }
-.flodes-knapp:hover { background: #e8e7e0; }
-.flodes-knapp.active {
-  background: #3c3489;
-  color: #fff;
-  border-color: #3c3489;
+.flik:hover { color: #3c3489; background: #f0efe8; }
+.flik.active {
+  color: #3c3489;
+  border-bottom-color: #3c3489;
+  background: #fff;
 }
-.flodes-panel { min-height: 80px; }
+.flik-innehall { padding: 1.25rem 1.5rem; }
+.flodes-panel { min-height: 60px; }
 </style>
 
 <script>
 const projektId = '{{ projekt.id }}';
-let initieringPolling = null;
-let analyseraPolling = null;
+let aktivtFlode = 'initiering';
+let flodeStatus = 'inaktiv'; // inaktiv | kör | pausad
+let aktivPolling = null;
 
 function visaFlode(namn, knapp) {
   document.querySelectorAll('.flodes-panel').forEach(p => {
     p.style.display = 'none';
   });
-  document.querySelectorAll('.flodes-knapp').forEach(k => {
+  document.querySelectorAll('.flik').forEach(k => {
     k.classList.remove('active');
   });
   document.getElementById('flode-' + namn).style.display = 'block';
   knapp.classList.add('active');
+  aktivtFlode = namn;
 
-  if (namn === 'analysera') {
-    laddaUtkastpar();
+  if (namn === 'analysera') laddaUtkastpar();
+
+  if (flodeStatus === 'pausad') {
+    logg('System', 'Flödesinformation rensad -- tidigare pausat flöde ignoreras.');
+    rensaFlodeStatus();
   }
 }
 
-function logg(flode, meddelande) {
-  const loggkort = document.getElementById('statuslogg-kort');
-  const logg = document.getElementById('statuslogg');
-  loggkort.style.display = 'block';
-  const tid = new Date().toLocaleTimeString('sv-SE', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-  const rad = document.createElement('div');
-  rad.textContent = `[${tid}] ${flode}: ${meddelande}`;
-  logg.appendChild(rad);
-  logg.scrollTop = logg.scrollHeight;
+function rensaFlodeStatus() {
+  flodeStatus = 'inaktiv';
+  uppdateraAvbrytKnapp();
+  fetch(`/avbryt/${projektId}`, {method: 'POST'});
 }
 
-function rensaLogg() {
-  document.getElementById('statuslogg').innerHTML = '';
-  document.getElementById('statuslogg-kort').style.display = 'none';
+function uppdateraAvbrytKnapp() {
+  const knapp = document.getElementById('avbryt-knapp');
+  if (flodeStatus === 'inaktiv') {
+    knapp.textContent = 'Avbryt';
+    knapp.className = 'knapp knapp-sek';
+  } else if (flodeStatus === 'kör') {
+    knapp.textContent = 'Avbryt';
+    knapp.className = 'knapp knapp-prim';
+  } else if (flodeStatus === 'pausad') {
+    knapp.textContent = 'Återuppta';
+    knapp.className = 'knapp knapp-prim';
+  }
 }
 
-function startaInitiering(projektId, steg) {
-  logg('Initiering', steg === 'full'
-    ? 'Startar full initiering...'
-    : `Startar ${steg}...`);
-
-  fetch(`/initiering/${projektId}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({steg: steg})
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'startad') {
-      logg('Initiering', 'Pågår...');
-      if (initieringPolling) clearInterval(initieringPolling);
-      initieringPolling = setInterval(() => {
-        pollStatus(projektId, 'Initiering', initieringPolling);
-      }, 4000);
-    } else {
-      logg('Initiering', 'Fel -- kolla terminalen.');
-    }
-  })
-  .catch(() => logg('Initiering', 'Fel -- kolla terminalen.'));
+function hanteraAvbrytAtervuppta() {
+  if (flodeStatus === 'inaktiv') return;
+  if (flodeStatus === 'kör') {
+    logg('System', 'Avbryter flödet...');
+    fetch(`/avbryt/${projektId}`, {method: 'POST'})
+      .then(() => {
+        if (aktivPolling) clearInterval(aktivPolling);
+        flodeStatus = 'pausad';
+        uppdateraAvbrytKnapp();
+        logg('System', 'Flödet avbrutet. Tryck Återuppta för att fortsätta.');
+      });
+  } else if (flodeStatus === 'pausad') {
+    logg('System', 'Återupptar flödet...');
+    startaOmSenasteFlode();
+  }
 }
 
-function pollStatus(projektId, flodeNamn, pollingRef) {
-  fetch(`/status/${projektId}`)
+function startaOmSenasteFlode() {
+  fetch(`/aterupptas/${projektId}`, {method: 'POST'})
     .then(r => r.json())
     .then(data => {
-      if (data.status === 'klar') {
-        clearInterval(pollingRef);
-        logg(flodeNamn, 'Klar!');
-      } else if (data.status === 'pausad') {
-        clearInterval(pollingRef);
-        logg(flodeNamn,
-          `Pausad vid: ${data.pausad_vid || data.steg} -- ${data.fel}`);
-        logg(flodeNamn, 'Tryck på knappen igen för att fortsätta.');
-      } else if (data.status === 'fel') {
-        clearInterval(pollingRef);
-        logg(flodeNamn, 'Fel -- kolla terminalen.');
+      if (data.status === 'startad') {
+        flodeStatus = 'kör';
+        uppdateraAvbrytKnapp();
+        logg('System', 'Flödet återupptaget.');
+        startaPolling();
+      } else {
+        logg('System', 'Kunde inte återuppta -- inget sparat flöde.');
       }
     });
 }
 
-function startaSkriv(projektId, fullKontext) {
-  const uppgift = document.getElementById('skriv-uppgift').value.trim();
-  if (!uppgift) {
-    logg('Skriv', 'Ange en uppgift först.');
+function startaPolling() {
+  if (aktivPolling) clearInterval(aktivPolling);
+  aktivPolling = setInterval(() => {
+    fetch(`/status/${projektId}`)
+      .then(r => r.json())
+      .then(s => {
+        if (s.status === 'klar') {
+          clearInterval(aktivPolling);
+          flodeStatus = 'inaktiv';
+          uppdateraAvbrytKnapp();
+          logg(aktivtFlode, 'Klar!');
+        } else if (s.status === 'pausad') {
+          clearInterval(aktivPolling);
+          flodeStatus = 'pausad';
+          uppdateraAvbrytKnapp();
+          logg(aktivtFlode,
+            `Pausad: ${s.fel || s.pausad_vid || 'okänd orsak'}`);
+          logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
+        } else if (s.status === 'fel') {
+          clearInterval(aktivPolling);
+          flodeStatus = 'inaktiv';
+          uppdateraAvbrytKnapp();
+          logg(aktivtFlode, 'Fel -- kolla terminalen.');
+        }
+      });
+  }, 4000);
+}
+
+function startaFlode(typ, param) {
+  if (flodeStatus === 'kör') {
+    logg('System', 'Ett flöde körs redan.');
     return;
   }
-  logg('Skriv', 'Startar...');
-  fetch(`/skriv/${projektId}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({uppgift: uppgift, full_kontext: fullKontext})
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'startad') {
-      logg('Skriv', 'Pågår -- utkast sparas på Drive när klart.');
-      let skrivPolling = setInterval(() => {
-        pollStatus(projektId, 'Skriv', skrivPolling);
-      }, 4000);
-    } else {
-      logg('Skriv', 'Fel -- kolla terminalen.');
-    }
-  })
-  .catch(() => logg('Skriv', 'Fel -- kolla terminalen.'));
+
+  if (typ === 'initiering') {
+    logg('Initiering', param === 'full'
+      ? 'Startar full initiering...'
+      : `Startar ${param}...`);
+    fetch(`/initiering/${projektId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({steg: param})
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'startad') {
+        flodeStatus = 'kör';
+        uppdateraAvbrytKnapp();
+        startaPolling();
+      }
+    });
+
+  } else if (typ === 'skriv') {
+    const uppgift = document.getElementById('skriv-uppgift').value.trim();
+    if (!uppgift) { logg('Skriv', 'Ange en uppgift först.'); return; }
+    logg('Skriv', 'Startar...');
+    fetch(`/skriv/${projektId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({uppgift: uppgift, full_kontext: param})
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'startad') {
+        flodeStatus = 'kör';
+        uppdateraAvbrytKnapp();
+        startaPolling();
+      }
+    });
+
+  } else if (typ === 'analysera') {
+    const kapitel = document.getElementById('analysera-kapitel').value;
+    if (!kapitel) { logg('Analysera', 'Välj ett kapitel.'); return; }
+    logg('Analysera', `Startar analys av ${kapitel}...`);
+    fetch(`/analysera/${projektId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kapitel_namn: kapitel, ignorera_flaggor: param})
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'startad') {
+        flodeStatus = 'kör';
+        uppdateraAvbrytKnapp();
+        startaPolling();
+      }
+    });
+  }
 }
 
 function laddaUtkastpar() {
@@ -273,71 +355,30 @@ function laddaUtkastpar() {
   fetch(`/analysera/utkast/${projektId}`)
     .then(r => r.json())
     .then(par => {
-      if (par.length === 0) {
-        select.innerHTML =
-          '<option value="">Inga utkastpar hittades</option>';
-      } else {
-        select.innerHTML = par.map(p =>
-          `<option value="${p.namn}">${p.display}</option>`
-        ).join('');
-      }
-    })
-    .catch(() => {
-      select.innerHTML = '<option value="">Fel vid laddning</option>';
+      select.innerHTML = par.length === 0
+        ? '<option value="">Inga utkastpar hittades</option>'
+        : par.map(p =>
+            `<option value="${p.namn}">${p.display}</option>`
+          ).join('');
     });
 }
 
-function startaAnalysera(projektId, ignoreraFlaggor) {
-  const kapitel = document.getElementById('analysera-kapitel').value;
-  const flaggorDiv = document.getElementById('analysera-flaggor');
-  if (!kapitel) {
-    logg('Analysera', 'Välj ett kapitel först.');
-    return;
-  }
-  logg('Analysera', `Startar analys av ${kapitel}...`);
-  flaggorDiv.style.display = 'none';
+function logg(flode, meddelande) {
+  const kort = document.getElementById('statuslogg-kort');
+  const loggDiv = document.getElementById('statuslogg');
+  kort.style.display = 'block';
+  const tid = new Date().toLocaleTimeString('sv-SE', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const rad = document.createElement('div');
+  rad.textContent = `[${tid}] ${flode}: ${meddelande}`;
+  loggDiv.appendChild(rad);
+  loggDiv.scrollTop = loggDiv.scrollHeight;
+}
 
-  fetch(`/analysera/${projektId}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      kapitel_namn: kapitel,
-      ignorera_flaggor: ignoreraFlaggor
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'startad') {
-      logg('Analysera', 'Pågår...');
-      if (analyseraPolling) clearInterval(analyseraPolling);
-      analyseraPolling = setInterval(() => {
-        fetch(`/status/${projektId}`)
-          .then(r => r.json())
-          .then(s => {
-            if (s.status === 'flaggat') {
-              clearInterval(analyseraPolling);
-              logg('Analysera', 'Förlagsredaktören flaggade problem.');
-              flaggorDiv.style.display = 'block';
-              flaggorDiv.innerHTML = `
-                <strong>Förlagsredaktörens flaggor:</strong><br><br>
-                ${s.flaggor.replace(/\n/g, '<br>')}
-                <br><br>
-                <button class="knapp knapp-sek"
-                        onclick="startaAnalysera('${projektId}', true)">
-                  Ignorera och fortsätt
-                </button>`;
-            } else if (s.status === 'klar') {
-              clearInterval(analyseraPolling);
-              logg('Analysera', 'Klar!');
-            } else if (s.status === 'fel') {
-              clearInterval(analyseraPolling);
-              logg('Analysera', 'Fel -- kolla terminalen.');
-            }
-          });
-      }, 4000);
-    }
-  })
-  .catch(() => logg('Analysera', 'Fel -- kolla terminalen.'));
+function rensaLogg() {
+  document.getElementById('statuslogg').innerHTML = '';
+  document.getElementById('statuslogg-kort').style.display = 'none';
 }
 
 function uppdateraLLM(agent, llm) {
