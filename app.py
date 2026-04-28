@@ -98,29 +98,46 @@ def valj_projekt(projekt_id, projekt_titel):
 def initiering_route(projekt_id):
     from flows.initiering import kor_initiering
     import asyncio
+    import threading
+
+    data = request.get_json() or {}
+    steg = data.get("steg", "full")
 
     service = get_service()
     config = lас_config()
     senaste = config.get("senaste_projekt", {})
     titel = senaste.get("titel", "Okänt projekt")
-
     projekt = ladda_projekt(service, projekt_id, titel)
     llm_installningar = config.get("llm_per_agent", {})
+
+    _flodes_status[projekt_id] = {"status": "kor"}
 
     def kor():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(
-                kor_initiering(service, projekt, llm_installningar)
+            res = loop.run_until_complete(
+                kor_initiering(
+                    service, projekt, llm_installningar,
+                    endast_steg=steg if steg != "full" else None,
+                )
             )
+            if res and res.get("pausad"):
+                _flodes_status[projekt_id] = {
+                    "status": "pausad",
+                    "pausad_vid": res.get("steg"),
+                    "fel": res.get("fel"),
+                }
+            else:
+                _flodes_status[projekt_id] = {"status": "klar"}
+        except Exception as e:
+            print(f"Fel i initieringsflödet: {e}")
+            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
         finally:
             loop.close()
 
-    import threading
     trad = threading.Thread(target=kor)
     trad.start()
-
     return jsonify({"status": "startad"})
 
 @app.route("/skriv/<projekt_id>", methods=["POST"])

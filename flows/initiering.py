@@ -126,7 +126,7 @@ def _steg_fore(steg_namn):
 
 
 async def kor_initiering(service, projekt, llm_installningar,
-                          status_callback=None):
+                          status_callback=None, endast_steg=None):
     def status(meddelande):
         print(meddelande)
         if status_callback:
@@ -143,7 +143,13 @@ async def kor_initiering(service, projekt, llm_installningar,
     else:
         hoppa_over = []
 
-    status("Läser dokument från Drive...")
+    if endast_steg:
+        hoppa_over = [s for s in INITIERING_STEG_ORDNING
+                      if s != endast_steg]
+        status(f"Kör endast: {endast_steg}")
+    elif tillstand and tillstand.get("flode") == "initiering":
+        status("Läser dokument från Drive...")
+        
     dokument = hamta_dokument(service, projekt)
 
     boktext = dokument.get("bok", "")
