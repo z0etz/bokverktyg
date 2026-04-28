@@ -6,7 +6,7 @@ from drive import (
     skapa_google_doc,
 )
 from prompts import (
-    skrivare_ny_session_prompt,
+    skrivare_ny_session_prompt_med_filer,
     skrivare_skriv_prompt,
     skrivare_full_kontext_prompt,
     skrivare_revidera_prompt,
@@ -91,7 +91,7 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
 
     if full_kontext:
         status("Laddar full kontext till Skrivaren...")
-        session_prompt = skrivare_ny_session_prompt(
+        session_prompt = skrivare_ny_session_prompt_med_filer(
             boktext=dok["bok"],
             stilguide=dok["stilguide"],
             karaktarer=dok["karaktarer"],
@@ -113,7 +113,7 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
         )
         if behover_full:
             status("Ingen sparad session -- laddar full kontext...")
-            session_prompt = skrivare_ny_session_prompt(
+            session_prompt = skrivare_ny_session_prompt_med_filer(
                 boktext=dok["bok"],
                 stilguide=dok["stilguide"],
                 karaktarer=dok["karaktarer"],
