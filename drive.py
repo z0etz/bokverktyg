@@ -261,7 +261,7 @@ def skapa_projekt(service, titel, parent_folder_id=None):
     print(f"\nProjekt '{titel}' skapat!")
     return projekt
 
-def med_retry(funktion, max_forsok=3, vantan=2):
+def med_retry(funktion, max_forsok=5, vantan=2):
     """
     Kör en funktion och försöker igen vid nätverksfel.
     """

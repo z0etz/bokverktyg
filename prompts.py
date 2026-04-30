@@ -306,7 +306,18 @@ UPPDATERINGSREGLER -- följ dessa exakt:
   läser det här dokumentet upprepade gånger.
 - Lägg till nya observationer från den nya texten där det är relevant.
 - Ta bort eller korrigera det som motsäger den nya texten.
-- Utelämna aldrig befintlig information om den inte direkt motsägs."""
+- Utelämna aldrig befintlig information om den inte direkt motsägs.
+- Skriv ut HELA dokumentet fullständigt. Inga genvägar, inga
+  sammanfattningar, inga "(Inga förändringar)"-noteringar.
+- För sektioner som inte förändrats: kopiera texten ordagrant,
+  tecken för tecken, utan att ändra ett enda ord.
+- För sektioner som behöver uppdateras: skriv den uppdaterade versionen.
+- För nya sektioner som ska läggas till: lägg till dem på rätt plats.
+- Ta bort eller korrigera det som direkt motsägs av ny information.
+- Skriv ALDRIG fraser som "(Inga förändringar)", "(oförändrat)",
+  "(se tidigare version)" eller liknande. Skriv alltid ut den faktiska texten.
+- Det färdiga dokumentet ska vara komplett och självständigt läsbart
+  utan tillgång till den tidigare versionen."""
 
     if ny_text and ny_text.strip():
         ny_text_sektion = f"## NY TEXT ATT ANALYSERA\n{ny_text}"

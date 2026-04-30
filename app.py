@@ -1,4 +1,13 @@
+import asyncio
+import threading    
 from flask import Flask, render_template, redirect, url_for, request, jsonify
+from drive import hamta_drive_tjanst
+from projekt import hamta_dokumentstatus, ladda_projekt, lista_projekt, nytt_projekt
+from flows.flodes_state import satt_avbryt, rensa_avbryt
+from flows.initiering import kor_initiering
+from flows.agent_runner import ladda_tillstand
+from flows.skriv import kor_skriv_flode
+from flows.analysera import hamta_utkastpar, kor_analysera_flode
 
 from config import (
     DEFAULT_CONFIG,
@@ -7,8 +16,6 @@ from config import (
     lас_config,
     uppdatera_llm,
 )
-from drive import hamta_drive_tjanst
-from projekt import hamta_dokumentstatus, ladda_projekt, lista_projekt, nytt_projekt
 
 app = Flask(__name__)
 app.secret_key = "bokverktyg-hemlig-nyckel"
@@ -96,13 +103,8 @@ def valj_projekt(projekt_id, projekt_titel):
 
 @app.route("/initiering/<projekt_id>", methods=["POST"])
 def initiering_route(projekt_id):
-    from flows.initiering import kor_initiering
-    import asyncio
-    import threading
-
     data = request.get_json() or {}
     steg = data.get("steg", "full")
-
     service = get_service()
     config = lас_config()
     senaste = config.get("senaste_projekt", {})
@@ -110,6 +112,7 @@ def initiering_route(projekt_id):
     projekt = ladda_projekt(service, projekt_id, titel)
     llm_installningar = config.get("llm_per_agent", {})
 
+    rensa_avbryt(projekt_id)
     _flodes_status[projekt_id] = {"status": "kor"}
 
     def kor():
@@ -120,12 +123,13 @@ def initiering_route(projekt_id):
                 kor_initiering(
                     service, projekt, llm_installningar,
                     endast_steg=steg if steg != "full" else None,
+                    projekt_id=projekt_id,
                 )
             )
             if res and res.get("pausad"):
                 _flodes_status[projekt_id] = {
                     "status": "pausad",
-                    "pausad_vid": res.get("steg"),
+                    "steg": res.get("steg"),
                     "fel": res.get("fel"),
                 }
             else:
@@ -140,12 +144,70 @@ def initiering_route(projekt_id):
     trad.start()
     return jsonify({"status": "startad"})
 
+
+@app.route("/avbryt/<projekt_id>", methods=["POST"])
+def avbryt_route(projekt_id):
+    satt_avbryt(projekt_id)
+    _flodes_status[projekt_id] = {
+        "status": "pausad",
+        "fel": "Avbrutet av användaren"
+    }
+    return jsonify({"status": "ok"})
+
+
+@app.route("/aterupptas/<projekt_id>", methods=["POST"])
+def aterupptas_route(projekt_id):
+    service = get_service()
+    config = lас_config()
+    senaste = config.get("senaste_projekt", {})
+    titel = senaste.get("titel", "Okänt projekt")
+    projekt = ladda_projekt(service, projekt_id, titel)
+
+    tillstand = ladda_tillstand(service, projekt.get("system_mapp_id"))
+    if not tillstand or not tillstand.get("flode"):
+        return jsonify({"status": "inget_tillstand"})
+
+    rensa_avbryt(projekt_id)
+    _flodes_status[projekt_id] = {"status": "kor"}
+
+    flode = tillstand.get("flode")
+    llm_installningar = config.get("llm_per_agent", {})
+
+    def kor():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            if flode == "initiering":
+                from flows.initiering import kor_initiering
+                res = loop.run_until_complete(
+                    kor_initiering(
+                        service, projekt, llm_installningar,
+                        projekt_id=projekt_id,
+                    )
+                )
+            else:
+                res = {"klar": True}
+
+            if res and res.get("pausad"):
+                _flodes_status[projekt_id] = {
+                    "status": "pausad",
+                    "steg": res.get("steg"),
+                    "fel": res.get("fel"),
+                }
+            else:
+                _flodes_status[projekt_id] = {"status": "klar"}
+        except Exception as e:
+            print(f"Fel vid återupptagning: {e}")
+            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
+        finally:
+            loop.close()
+
+    trad = threading.Thread(target=kor)
+    trad.start()
+    return jsonify({"status": "startad"})
+
 @app.route("/skriv/<projekt_id>", methods=["POST"])
 def skriv_route(projekt_id):
-    from flows.skriv import kor_skriv_flode
-    import asyncio
-    import threading
-
     data = request.get_json()
     uppgift = data.get("uppgift", "").strip()
     full_kontext = data.get("full_kontext", False)
@@ -184,13 +246,14 @@ def skriv_route(projekt_id):
             loop.close()
 
     trad = threading.Thread(target=kor)
+    rensa_avbryt(projekt_id)
+    _flodes_status[projekt_id] = {"status": "kor"}
     trad.start()
 
     return jsonify({"status": "startad"})
 
 @app.route("/analysera/utkast/<projekt_id>")
 def hamta_utkastpar_route(projekt_id):
-    from flows.analysera import hamta_utkastpar
     service = get_service()
     config = lас_config()
     senaste = config.get("senaste_projekt", {})
@@ -205,10 +268,6 @@ def hamta_utkastpar_route(projekt_id):
 
 @app.route("/analysera/<projekt_id>", methods=["POST"])
 def analysera_route(projekt_id):
-    from flows.analysera import kor_analysera_flode
-    import asyncio
-    import threading
-
     data = request.get_json()
     kapitel_namn = data.get("kapitel_namn", "").strip()
     ignorera_flaggor = data.get("ignorera_flaggor", False)
@@ -247,6 +306,8 @@ def analysera_route(projekt_id):
             loop.close()
 
     trad = threading.Thread(target=kor)
+    rensa_avbryt(projekt_id)
+    _flodes_status[projekt_id] = {"status": "kor"}
     trad.start()
     return jsonify({"status": "startad"})
 
@@ -256,63 +317,6 @@ _flodes_status = {}
 def hamta_status(projekt_id):
     return jsonify(_flodes_status.get(projekt_id, {"status": "okand"}))
 
-_avbryt_flaggor = {}
-
-@app.route("/avbryt/<projekt_id>", methods=["POST"])
-def avbryt_route(projekt_id):
-    _avbryt_flaggor[projekt_id] = True
-    _flodes_status[projekt_id] = {"status": "pausad", "fel": "Avbrutet av användaren"}
-    return jsonify({"status": "ok"})
-
-@app.route("/aterupptas/<projekt_id>", methods=["POST"])
-def aterupptas_route(projekt_id):
-    from flows.tillstand import ladda_tillstand
-    service = get_service()
-    config = lас_config()
-    senaste = config.get("senaste_projekt", {})
-    titel = senaste.get("titel", "Okänt projekt")
-    projekt = ladda_projekt(service, projekt_id, titel)
-    
-    tillstand = ladda_tillstand(service, projekt.get("system_mapp_id"))
-    if not tillstand:
-        return jsonify({"status": "inget_tillstand"})
-    
-    _avbryt_flaggor[projekt_id] = False
-    _flodes_status[projekt_id] = {"status": "kor"}
-    
-    flode = tillstand.get("flode")
-    llm_installningar = config.get("llm_per_agent", {})
-    
-    import asyncio, threading
-    
-    def kor():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            if flode == "initiering":
-                from flows.initiering import kor_initiering
-                res = loop.run_until_complete(
-                    kor_initiering(service, projekt, llm_installningar)
-                )
-            else:
-                res = {"klar": True}
-            
-            if res and res.get("pausad"):
-                _flodes_status[projekt_id] = {
-                    "status": "pausad",
-                    "fel": res.get("fel"),
-                    "steg": res.get("steg"),
-                }
-            else:
-                _flodes_status[projekt_id] = {"status": "klar"}
-        except Exception as e:
-            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
-        finally:
-            loop.close()
-    
-    trad = threading.Thread(target=kor)
-    trad.start()
-    return jsonify({"status": "startad"})
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+    # app.run(debug=True, use_reloader=False) #För debug

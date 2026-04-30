@@ -5,6 +5,7 @@ from flows.agent_runner import (
     kor_agent, FlodesPausad, ladda_tillstand,
     rensa_tillstand, spara_tillstand
 )
+from flows.flodes_state import ar_avbruten
 
 PLATSHALLARE = [
     "Text börjar här.",
@@ -118,38 +119,55 @@ def dela_upp_dramaturgi_och_observationer(output):
 
 
 def _steg_fore(steg_namn):
-    """Returnerar alla steg som kommer före det angivna steget."""
     if steg_namn not in INITIERING_STEG_ORDNING:
         return []
     idx = INITIERING_STEG_ORDNING.index(steg_namn)
     return INITIERING_STEG_ORDNING[:idx]
 
 
+def _kolla_avbryt(projekt_id, system_mapp_id, service,
+                   steg_namn, flode_namn):
+    """
+    Kollar avbryt-flaggan mellan steg.
+    Sparar tillstånd och kastar FlodesPausad om avbruten.
+    """
+    if projekt_id and ar_avbruten(projekt_id):
+        print(f"Flöde avbrutet av användaren före: {steg_namn}")
+        spara_tillstand(service, system_mapp_id, {
+            "flode": flode_namn,
+            "pausad_vid_steg": steg_namn,
+            "fel": "Avbrutet av användaren",
+        })
+        raise FlodesPausad("Avbrutet av användaren")
+
+
 async def kor_initiering(service, projekt, llm_installningar,
-                          status_callback=None, endast_steg=None):
+                          status_callback=None, endast_steg=None,
+                          projekt_id=None):
     def status(meddelande):
         print(meddelande)
         if status_callback:
             status_callback(meddelande)
 
     system_mapp_id = projekt.get("system_mapp_id")
-
-    tillstand = ladda_tillstand(service, system_mapp_id)
-    if tillstand and tillstand.get("flode") == "initiering":
-        pausad_vid = tillstand.get("pausad_vid_steg")
-        hoppa_over = _steg_fore(pausad_vid)
-        status(f"Återupptar initiering från: {pausad_vid}")
-        status(f"Hoppar över redan klara steg: {hoppa_over}")
-    else:
-        hoppa_over = []
+    rensa_tillstand(service, system_mapp_id)
 
     if endast_steg:
         hoppa_over = [s for s in INITIERING_STEG_ORDNING
                       if s != endast_steg]
+        avsluta_efter = endast_steg
         status(f"Kör endast: {endast_steg}")
-    elif tillstand and tillstand.get("flode") == "initiering":
-        status("Läser dokument från Drive...")
-        
+    else:
+        avsluta_efter = None
+        tillstand = ladda_tillstand(service, system_mapp_id)
+        if tillstand and tillstand.get("flode") == "initiering":
+            pausad_vid = tillstand.get("pausad_vid_steg")
+            hoppa_over = _steg_fore(pausad_vid)
+            status(f"Återupptar från: {pausad_vid}")
+        else:
+            hoppa_over = []
+
+    status("Läser dokument från Drive...")
     dokument = hamta_dokument(service, projekt)
 
     boktext = dokument.get("bok", "")
@@ -171,6 +189,8 @@ async def kor_initiering(service, projekt, llm_installningar,
 
     # Stilanalytikern
     if "stilanalytiker" not in hoppa_over:
+        _kolla_avbryt(projekt_id, system_mapp_id, service,
+                      "stilanalytiker", "initiering")
         status("Startar Stilanalytikern...")
         stil_prompt = analytiker_uppdatera_prompt(
             ny_text=boktext,
@@ -184,30 +204,36 @@ async def kor_initiering(service, projekt, llm_installningar,
             stil_prompt = ersatt_text_med_filreferens(
                 stil_prompt, dokument_att_bifoga
             )
-        stil_adapter = hamta_adapter(
-            llm_installningar.get("stilanalytikern", "claude")
-        )
         try:
             stilguide = await kor_agent(
-                adapter=stil_adapter,
+                adapter=hamta_adapter(
+                    llm_installningar.get("stilanalytikern", "claude")
+                ),
                 prompt=stil_prompt,
                 agent_namn="Stilanalytikern",
                 service=service,
                 system_mapp_id=system_mapp_id,
                 flode_namn="initiering",
                 steg_namn="stilanalytiker",
+                projekt_id=projekt_id,
                 dokument_att_bifoga=dokument_att_bifoga,
             )
             spara_analytiker_output(service, projekt, "stilguide", stilguide)
             status("Stilguide sparad.")
-        except FlodesPausad:
-            status("Initiering pausad vid Stilanalytikern.")
-            return {"pausad": True, "steg": "stilanalytiker"}
+            if avsluta_efter == "stilanalytiker":
+                rensa_tillstand(service, system_mapp_id)
+                return {"klar": True}
+        except FlodesPausad as e:
+            status(f"Initiering pausad: {e}")
+            return {"pausad": True, "steg": "stilanalytiker",
+                    "fel": str(e)}
     else:
         status("Hoppar över Stilanalytikern (redan klar).")
 
     # Karaktärskartläggaren
     if "karaktarskartlaggare" not in hoppa_over:
+        _kolla_avbryt(projekt_id, system_mapp_id, service,
+                      "karaktarskartlaggare", "initiering")
         status("Startar Karaktärskartläggaren...")
         karaktarer_prompt = analytiker_uppdatera_prompt(
             ny_text=boktext,
@@ -221,18 +247,18 @@ async def kor_initiering(service, projekt, llm_installningar,
             karaktarer_prompt = ersatt_text_med_filreferens(
                 karaktarer_prompt, dokument_att_bifoga
             )
-        karaktarer_adapter = hamta_adapter(
-            llm_installningar.get("karaktarskartlaggaren", "claude")
-        )
         try:
             karaktarer_output = await kor_agent(
-                adapter=karaktarer_adapter,
+                adapter=hamta_adapter(
+                    llm_installningar.get("karaktarskartlaggaren", "claude")
+                ),
                 prompt=karaktarer_prompt,
                 agent_namn="Karaktärskartläggaren",
                 service=service,
                 system_mapp_id=system_mapp_id,
                 flode_namn="initiering",
                 steg_namn="karaktarskartlaggare",
+                projekt_id=projekt_id,
                 dokument_att_bifoga=dokument_att_bifoga,
             )
             karaktarer, kontext = dela_upp_karaktarer_och_kontext(
@@ -246,14 +272,20 @@ async def kor_initiering(service, projekt, llm_installningar,
                     service, projekt, "kontext", kontext
                 )
             status("Karaktärsdokument och kontext sparade.")
-        except FlodesPausad:
-            status("Initiering pausad vid Karaktärskartläggaren.")
-            return {"pausad": True, "steg": "karaktarskartlaggare"}
+            if avsluta_efter == "karaktarskartlaggare":
+                rensa_tillstand(service, system_mapp_id)
+                return {"klar": True}
+        except FlodesPausad as e:
+            status(f"Initiering pausad: {e}")
+            return {"pausad": True, "steg": "karaktarskartlaggare",
+                    "fel": str(e)}
     else:
         status("Hoppar över Karaktärskartläggaren (redan klar).")
 
     # Dramaturgikonsulten
     if "dramaturgikonsult" not in hoppa_over:
+        _kolla_avbryt(projekt_id, system_mapp_id, service,
+                      "dramaturgikonsult", "initiering")
         status("Startar Dramaturgikonsulten...")
         dram_prompt = analytiker_uppdatera_prompt(
             ny_text=boktext,
@@ -267,18 +299,18 @@ async def kor_initiering(service, projekt, llm_installningar,
             dram_prompt = ersatt_text_med_filreferens(
                 dram_prompt, dokument_att_bifoga
             )
-        dram_adapter = hamta_adapter(
-            llm_installningar.get("dramaturgikonsulten", "claude")
-        )
         try:
             dramaturgi_output = await kor_agent(
-                adapter=dram_adapter,
+                adapter=hamta_adapter(
+                    llm_installningar.get("dramaturgikonsulten", "claude")
+                ),
                 prompt=dram_prompt,
                 agent_namn="Dramaturgikonsulten",
                 service=service,
                 system_mapp_id=system_mapp_id,
                 flode_namn="initiering",
                 steg_namn="dramaturgikonsult",
+                projekt_id=projekt_id,
                 dokument_att_bifoga=dokument_att_bifoga,
             )
             dramaturgi, observationer = dela_upp_dramaturgi_och_observationer(
@@ -293,12 +325,16 @@ async def kor_initiering(service, projekt, llm_installningar,
                     "dramaturgi_observationer", observationer
                 )
             status("Dramaturgi och observationer sparade.")
-        except FlodesPausad:
-            status("Initiering pausad vid Dramaturgikonsulten.")
-            return {"pausad": True, "steg": "dramaturgikonsult"}
+            if avsluta_efter == "dramaturgikonsult":
+                rensa_tillstand(service, system_mapp_id)
+                return {"klar": True}
+        except FlodesPausad as e:
+            status(f"Initiering pausad: {e}")
+            return {"pausad": True, "steg": "dramaturgikonsult",
+                    "fel": str(e)}
     else:
         status("Hoppar över Dramaturgikonsulten (redan klar).")
 
     rensa_tillstand(service, system_mapp_id)
-    status("\nInitiering klar! Alla analysrapporter sparade på Drive.")
+    status("Initiering klar!")
     return {"klar": True}

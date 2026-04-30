@@ -218,26 +218,29 @@ function uppdateraAvbrytKnapp() {
   if (flodeStatus === 'inaktiv') {
     knapp.textContent = 'Avbryt';
     knapp.className = 'knapp knapp-sek';
+    knapp.disabled = false;
   } else if (flodeStatus === 'kör') {
     knapp.textContent = 'Avbryt';
     knapp.className = 'knapp knapp-prim';
+    knapp.disabled = false;
+  } else if (flodeStatus === 'avbryter') {
+    knapp.textContent = 'Avbryter inför nästa steg...';
+    knapp.className = 'knapp knapp-sek';
+    knapp.disabled = true;
   } else if (flodeStatus === 'pausad') {
     knapp.textContent = 'Återuppta';
     knapp.className = 'knapp knapp-prim';
+    knapp.disabled = false;
   }
 }
 
 function hanteraAvbrytAtervuppta() {
   if (flodeStatus === 'inaktiv') return;
+  if (flodeStatus === 'avbryter') return;
   if (flodeStatus === 'kör') {
-    logg('System', 'Avbryter flödet...');
-    fetch(`/avbryt/${projektId}`, {method: 'POST'})
-      .then(() => {
-        if (aktivPolling) clearInterval(aktivPolling);
-        flodeStatus = 'pausad';
-        uppdateraAvbrytKnapp();
-        logg('System', 'Flödet avbrutet. Tryck Återuppta för att fortsätta.');
-      });
+    flodeStatus = 'avbryter';
+    uppdateraAvbrytKnapp();
+    fetch(`/avbryt/${projektId}`, {method: 'POST'});
   } else if (flodeStatus === 'pausad') {
     logg('System', 'Återupptar flödet...');
     startaOmSenasteFlode();
@@ -270,7 +273,7 @@ function startaPolling() {
           flodeStatus = 'inaktiv';
           uppdateraAvbrytKnapp();
           logg(aktivtFlode, 'Klar!');
-        } else if (s.status === 'pausad') {
+        } else if (s.status === 'pausad' && flodeStatus !== 'avbryter') {
           clearInterval(aktivPolling);
           flodeStatus = 'pausad';
           uppdateraAvbrytKnapp();
@@ -288,6 +291,8 @@ function startaPolling() {
 }
 
 function startaFlode(typ, param) {
+  uppdateraAvbrytKnapp();
+  
   if (flodeStatus === 'kör') {
     logg('System', 'Ett flöde körs redan.');
     return;
@@ -388,5 +393,6 @@ function uppdateraLLM(agent, llm) {
     body: JSON.stringify({agent: agent, llm: llm})
   });
 }
+
 </script>
 {% endblock %}

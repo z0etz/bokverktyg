@@ -4,7 +4,10 @@ Kan användas av alla flöden.
 """
 import json
 import datetime
-from drive import hamta_fil_id, las_google_doc, uppdatera_google_doc, skapa_google_doc
+from drive import (
+    hamta_fil_id, las_google_doc,
+    uppdatera_google_doc, skapa_google_doc
+)
 
 TILLSTAND_FILNAMN = "flodestillstand"
 
@@ -45,17 +48,14 @@ def rensa_tillstand(service, system_mapp_id):
 
 
 async def kor_agent(adapter, prompt, agent_namn,
-                     service, system_mapp_id,
-                     flode_namn, steg_namn,
-                     projekt_id=None,
-                     dokument_att_bifoga=None,
-                     extra_context=None):
+                    service, system_mapp_id,
+                    flode_namn, steg_namn,
+                    projekt_id=None,
+                    dokument_att_bifoga=None,
+                    extra_context=None):
     """
     Kör ett agentanrop. Om agenten inte svarar sparas tillståndet
-    och FlodesPausad kastas så att anropande flöde kan hantera det.
-
-    extra_context: valfri dict med metadata som sparas i tillståndet
-                   så att flödet vet exakt var det var och vad det höll på med.
+    och FlodesPausad kastas.
     """
     print(f"\n{agent_namn} arbetar...")
     await adapter.starta(visa_webblasare=True)
@@ -71,9 +71,6 @@ async def kor_agent(adapter, prompt, agent_namn,
             )
             prompt = prompt + f"\n\n{extra}"
 
-    if _ar_avbruten(projekt_id if 'projekt_id' in locals() else ""):
-        raise FlodesPausad("Avbrutet av användaren")
-    
     svar = await adapter.skicka_meddelande(prompt)
     senaste_fel = getattr(adapter, 'senaste_fel', None)
     await adapter.stang()
@@ -81,23 +78,13 @@ async def kor_agent(adapter, prompt, agent_namn,
     if not svar:
         fel = senaste_fel or f"Inget svar från {agent_namn}."
         print(f"  {agent_namn} misslyckades: {fel}")
-
-        tillstand = {
+        spara_tillstand(service, system_mapp_id, {
             "flode": flode_namn,
             "pausad_vid_steg": steg_namn,
             "fel": fel,
             "extra": extra_context or {},
-        }
-        spara_tillstand(service, system_mapp_id, tillstand)
+        })
         raise FlodesPausad(f"{agent_namn}: {fel}")
 
     print(f"  {agent_namn}: {len(svar)} tecken mottagna.")
     return svar
-
-def _ar_avbruten(projekt_id):
-    """Kollar om användaren tryckt Avbryt."""
-    try:
-        from app import _avbryt_flaggor
-        return _avbryt_flaggor.get(projekt_id, False)
-    except Exception:
-        return False
