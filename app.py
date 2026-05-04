@@ -222,7 +222,7 @@ def skriv_route(projekt_id):
     projekt = ladda_projekt(service, projekt_id, titel)
     llm_installningar = config.get("llm_per_agent", {})
 
-    resultat = {"status": "kör", "utkast": None, "godkant": None}
+    resultat = {"status": "kor", "utkast": None, "godkant": None}
 
     def kor():
         loop = asyncio.new_event_loop()

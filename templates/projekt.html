@@ -185,7 +185,7 @@
 <script>
 const projektId = '{{ projekt.id }}';
 let aktivtFlode = 'initiering';
-let flodeStatus = 'inaktiv'; // inaktiv | kör | pausad
+let flodeStatus = 'inaktiv'; // inaktiv | kor | pausad
 let aktivPolling = null;
 
 function visaFlode(namn, knapp) {
@@ -200,11 +200,6 @@ function visaFlode(namn, knapp) {
   aktivtFlode = namn;
 
   if (namn === 'analysera') laddaUtkastpar();
-
-  if (flodeStatus === 'pausad') {
-    logg('System', 'Flödesinformation rensad -- tidigare pausat flöde ignoreras.');
-    rensaFlodeStatus();
-  }
 }
 
 function rensaFlodeStatus() {
@@ -219,7 +214,7 @@ function uppdateraAvbrytKnapp() {
     knapp.textContent = 'Avbryt';
     knapp.className = 'knapp knapp-sek';
     knapp.disabled = false;
-  } else if (flodeStatus === 'kör') {
+  } else if (flodeStatus === 'kor') {
     knapp.textContent = 'Avbryt';
     knapp.className = 'knapp knapp-prim';
     knapp.disabled = false;
@@ -237,7 +232,7 @@ function uppdateraAvbrytKnapp() {
 function hanteraAvbrytAtervuppta() {
   if (flodeStatus === 'inaktiv') return;
   if (flodeStatus === 'avbryter') return;
-  if (flodeStatus === 'kör') {
+  if (flodeStatus === 'kor') {
     flodeStatus = 'avbryter';
     uppdateraAvbrytKnapp();
     fetch(`/avbryt/${projektId}`, {method: 'POST'});
@@ -252,7 +247,7 @@ function startaOmSenasteFlode() {
     .then(r => r.json())
     .then(data => {
       if (data.status === 'startad') {
-        flodeStatus = 'kör';
+        flodeStatus = 'kor';
         uppdateraAvbrytKnapp();
         logg('System', 'Flödet återupptaget.');
         startaPolling();
@@ -264,36 +259,62 @@ function startaOmSenasteFlode() {
 
 function startaPolling() {
   if (aktivPolling) clearInterval(aktivPolling);
+
   aktivPolling = setInterval(() => {
     fetch(`/status/${projektId}`)
       .then(r => r.json())
       .then(s => {
+
+        console.log("STATUS FRÅN SERVER:", s);
+
         if (s.status === 'klar') {
           clearInterval(aktivPolling);
           flodeStatus = 'inaktiv';
           uppdateraAvbrytKnapp();
           logg(aktivtFlode, 'Klar!');
-        } else if (s.status === 'pausad' && flodeStatus !== 'avbryter') {
-          clearInterval(aktivPolling);
-          flodeStatus = 'pausad';
-          uppdateraAvbrytKnapp();
-          logg(aktivtFlode,
-            `Pausad: ${s.fel || s.pausad_vid || 'okänd orsak'}`);
-          logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
-        } else if (s.status === 'fel') {
+          return;
+        }
+
+        if (s.status === 'fel') {
           clearInterval(aktivPolling);
           flodeStatus = 'inaktiv';
           uppdateraAvbrytKnapp();
           logg(aktivtFlode, 'Fel -- kolla terminalen.');
+          return;
+        }
+
+        if (s.status === 'pausad') {
+          if (flodeStatus === 'avbryter') {
+            return;
+          }
+
+          clearInterval(aktivPolling);
+
+          flodeStatus = 'pausad';
+          uppdateraAvbrytKnapp();
+
+          const orsak = s.fel || '';
+          if (orsak === 'Avbrutet av användaren') {
+            logg(aktivtFlode, 'Flödet avbrutet.');
+          } else {
+            logg(aktivtFlode, `Pausad: ${orsak || 'okänd orsak'}`);
+          }
+
+          logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
         }
       });
   }, 4000);
 }
 
 function startaFlode(typ, param) {
+  if (flodeStatus === 'pausad') {
+    logg('System', 'Flödesinformation rensad -- tidigare pausat flöde ignoreras.');
+    rensaFlodeStatus();
+  }
+  
   uppdateraAvbrytKnapp();
   
-  if (flodeStatus === 'kör') {
+  if (flodeStatus === 'kor') {
     logg('System', 'Ett flöde körs redan.');
     return;
   }
@@ -310,7 +331,7 @@ function startaFlode(typ, param) {
     .then(r => r.json())
     .then(d => {
       if (d.status === 'startad') {
-        flodeStatus = 'kör';
+        flodeStatus = 'kor';
         uppdateraAvbrytKnapp();
         startaPolling();
       }
@@ -328,7 +349,7 @@ function startaFlode(typ, param) {
     .then(r => r.json())
     .then(d => {
       if (d.status === 'startad') {
-        flodeStatus = 'kör';
+        flodeStatus = 'kor';
         uppdateraAvbrytKnapp();
         startaPolling();
       }
@@ -346,7 +367,7 @@ function startaFlode(typ, param) {
     .then(r => r.json())
     .then(d => {
       if (d.status === 'startad') {
-        flodeStatus = 'kör';
+        flodeStatus = 'kor';
         uppdateraAvbrytKnapp();
         startaPolling();
       }
