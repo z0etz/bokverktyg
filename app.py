@@ -5,7 +5,7 @@ from drive import hamta_drive_tjanst
 from projekt import hamta_dokumentstatus, ladda_projekt, lista_projekt, nytt_projekt
 from flows.flodes_state import satt_avbryt, rensa_avbryt
 from flows.initiering import kor_initiering
-from flows.agent_runner import ladda_tillstand
+from flows.agent_runner import ladda_tillstand, rensa_tillstand, FlodesPausad
 from flows.skriv import kor_skriv_flode
 from flows.analysera import hamta_utkastpar, kor_analysera_flode
 
@@ -114,6 +114,7 @@ def initiering_route(projekt_id):
 
     rensa_avbryt(projekt_id)
     _flodes_status[projekt_id] = {"status": "kor"}
+    rensa_tillstand(service, projekt.get("system_mapp_id"))
 
     def kor():
         loop = asyncio.new_event_loop()
@@ -134,6 +135,11 @@ def initiering_route(projekt_id):
                 }
             else:
                 _flodes_status[projekt_id] = {"status": "klar"}
+        except FlodesPausad as e:
+            _flodes_status[projekt_id] = {
+                "status": "pausad",
+                "fel": str(e),
+            }
         except Exception as e:
             print(f"Fel i initieringsflödet: {e}")
             _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
@@ -148,10 +154,7 @@ def initiering_route(projekt_id):
 @app.route("/avbryt/<projekt_id>", methods=["POST"])
 def avbryt_route(projekt_id):
     satt_avbryt(projekt_id)
-    _flodes_status[projekt_id] = {
-        "status": "pausad",
-        "fel": "Avbrutet av användaren"
-    }
+    _flodes_status[projekt_id] = {"status": "avbryter"}
     return jsonify({"status": "ok"})
 
 
@@ -196,12 +199,16 @@ def aterupptas_route(projekt_id):
                 }
             else:
                 _flodes_status[projekt_id] = {"status": "klar"}
+        except FlodesPausad as e:
+            _flodes_status[projekt_id] = {
+                "status": "pausad",
+                "fel": str(e),
+            }
         except Exception as e:
             print(f"Fel vid återupptagning: {e}")
             _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
         finally:
             loop.close()
-
     trad = threading.Thread(target=kor)
     trad.start()
     return jsonify({"status": "startad"})
@@ -317,6 +324,47 @@ _flodes_status = {}
 def hamta_status(projekt_id):
     return jsonify(_flodes_status.get(projekt_id, {"status": "okand"}))
 
+@app.route("/knappstatus/<projekt_id>")
+def knapp_status(projekt_id):
+    status = _flodes_status.get(projekt_id, {}).get("status", "okand")
+    
+    # Vid aktiva statusar – returnera direkt utan Drive-anrop
+    if status in ("kor", "avbryter"):
+        return jsonify({
+            "status": status,
+            "har_sparat_tillstand": False,
+        })
+    
+    # Bara kolla Drive om vi behöver veta om återuppta är möjligt
+    har_sparat = False
+    try:
+        service = get_service()
+        config = lас_config()
+        senaste = config.get("senaste_projekt", {})
+        titel = senaste.get("titel", "Okänt projekt")
+        projekt = ladda_projekt(service, projekt_id, titel)
+        tillstand = ladda_tillstand(service, projekt.get("system_mapp_id"))
+        har_sparat = bool(tillstand and tillstand.get("flode"))
+    except Exception as e:
+        print(f"Knappstatus: kunde inte kolla Drive: {e}")
+    
+    return jsonify({
+        "status": status,
+        "har_sparat_tillstand": har_sparat,
+    })
+
+@app.route("/rensa-tillstand/<projekt_id>", methods=["POST"])
+def rensa_tillstand_route(projekt_id):
+    service = get_service()
+    config = lас_config()
+    senaste = config.get("senaste_projekt", {})
+    titel = senaste.get("titel", "Okänt projekt")
+    projekt = ladda_projekt(service, projekt_id, titel)
+    from flows.agent_runner import rensa_tillstand
+    rensa_tillstand(service, projekt.get("system_mapp_id"))
+    _flodes_status[projekt_id] = {"status": "okand"}
+    return jsonify({"ok": True})
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
-    # app.run(debug=True, use_reloader=False) #För debug
+    # app.run(debug=True, port=5000)
+    app.run(debug=True, use_reloader=False) #För debug

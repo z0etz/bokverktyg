@@ -150,13 +150,13 @@ async def kor_initiering(service, projekt, llm_installningar,
             status_callback(meddelande)
 
     system_mapp_id = projekt.get("system_mapp_id")
-    rensa_tillstand(service, system_mapp_id)
 
     if endast_steg:
         hoppa_over = [s for s in INITIERING_STEG_ORDNING
                       if s != endast_steg]
         avsluta_efter = endast_steg
         status(f"Kör endast: {endast_steg}")
+        rensa_tillstand(service, system_mapp_id)
     else:
         avsluta_efter = None
         tillstand = ladda_tillstand(service, system_mapp_id)
@@ -166,6 +166,7 @@ async def kor_initiering(service, projekt, llm_installningar,
             status(f"Återupptar från: {pausad_vid}")
         else:
             hoppa_over = []
+            rensa_tillstand(service, system_mapp_id)
 
     status("Läser dokument från Drive...")
     dokument = hamta_dokument(service, projekt)

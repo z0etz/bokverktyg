@@ -81,7 +81,7 @@
     <div class="rad" style="margin-top:1rem; padding-top:0.75rem;
                              border-top:1px solid #f0efe8;">
       <button id="avbryt-knapp" class="knapp knapp-sek"
-              onclick="hanteraAvbrytAtervuppta()">
+              onclick="hanteraAvbrytAteruppta()">
         Avbryt
       </button>
     </div>
@@ -203,9 +203,9 @@ function visaFlode(namn, knapp) {
 }
 
 function rensaFlodeStatus() {
-  flodeStatus = 'inaktiv';
-  uppdateraAvbrytKnapp();
-  fetch(`/avbryt/${projektId}`, {method: 'POST'});
+    flodeStatus = 'inaktiv';
+    uppdateraAvbrytKnapp();
+    fetch(`/rensa-tillstand/${projektId}`, {method: 'POST'});
 }
 
 function uppdateraAvbrytKnapp() {
@@ -229,7 +229,7 @@ function uppdateraAvbrytKnapp() {
   }
 }
 
-function hanteraAvbrytAtervuppta() {
+function hanteraAvbrytAteruppta() {
   if (flodeStatus === 'inaktiv') return;
   if (flodeStatus === 'avbryter') return;
   if (flodeStatus === 'kor') {
@@ -265,8 +265,6 @@ function startaPolling() {
       .then(r => r.json())
       .then(s => {
 
-        console.log("STATUS FRÅN SERVER:", s);
-
         if (s.status === 'klar') {
           clearInterval(aktivPolling);
           flodeStatus = 'inaktiv';
@@ -284,24 +282,19 @@ function startaPolling() {
         }
 
         if (s.status === 'pausad') {
-          if (flodeStatus === 'avbryter') {
-            return;
-          }
-
           clearInterval(aktivPolling);
-
+          aktivPolling = null;
           flodeStatus = 'pausad';
           uppdateraAvbrytKnapp();
 
           const orsak = s.fel || '';
           if (orsak === 'Avbrutet av användaren') {
-            logg(aktivtFlode, 'Flödet avbrutet.');
+              logg(aktivtFlode, 'Flödet avbrutet.');
           } else {
-            logg(aktivtFlode, `Pausad: ${orsak || 'okänd orsak'}`);
+              logg(aktivtFlode, `Pausad: ${orsak || 'okänd orsak'}`);
           }
-
           logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
-        }
+}
       });
   }, 4000);
 }
@@ -414,6 +407,24 @@ function uppdateraLLM(agent, llm) {
     body: JSON.stringify({agent: agent, llm: llm})
   });
 }
+
+// (async function() {
+//     try {
+//         const res = await fetch(`/knappstatus/${projektId}`);
+//         const data = await res.json();
+//         if (data.status === 'kor' || data.status === 'avbryter') {
+//             flodeStatus = data.status;
+//             uppdateraAvbrytKnapp();
+//             startaPolling();
+//         } else if (data.har_sparat_tillstand) {
+//             flodeStatus = 'pausad';
+//             uppdateraAvbrytKnapp();
+//             logg('System', 'Pausat flöde hittades – tryck Återuppta för att fortsätta.');
+//         }
+//     } catch(e) {
+//         console.error('Kunde inte hämta knappstatus:', e);
+//     }
+// })();
 
 </script>
 {% endblock %}
