@@ -102,3 +102,57 @@ async def kor_agent(adapter, prompt, agent_namn,
 
     print(f"  {agent_namn}: {len(svar)} tecken mottagna.")
     return svar
+
+async def kor_agent_session(adapter, dokument_att_bifoga=None):
+    """
+    Startar en adapter-session med bifogade filer.
+    Returnerar adaptern redo för skicka_meddelande-anrop.
+    Anroparen ansvarar för att anropa adapter.stang() när sessionen är klar.
+    """
+    await adapter.starta(visa_webblasare=True)
+    await adapter.ny_konversation()
+
+    if dokument_att_bifoga and hasattr(adapter, 'bifoga_filer'):
+        print(f"Bifogar {list(dokument_att_bifoga.keys())}...")
+        resultat = await adapter.bifoga_filer(dokument_att_bifoga)
+        if isinstance(resultat, dict) and resultat:
+            return resultat  # extra text att lägga till i första prompt
+    return {}
+
+
+async def skicka_i_session(adapter, prompt, agent_namn,
+                            service, system_mapp_id,
+                            flode_namn, steg_namn,
+                            extra_context=None):
+    """
+    Skickar ett meddelande i en redan startad session.
+    Kastar FlodesPausad om inget svar.
+    """
+    try:
+        svar = await adapter.skicka_meddelande(prompt)
+        senaste_fel = getattr(adapter, 'senaste_fel', None)
+    except Exception as e:
+        fel_full = str(e)
+        fel = fel_full.split('\n')[0][:120]
+        print(f"  {agent_namn} kraschade: {fel_full}")
+        spara_tillstand(service, system_mapp_id, {
+            "flode": flode_namn,
+            "pausad_vid_steg": steg_namn,
+            "fel": fel,
+            "extra": extra_context or {},
+        })
+        raise FlodesPausad(f"{agent_namn}: {fel}")
+
+    if not svar:
+        fel = senaste_fel or f"Inget svar från {agent_namn}."
+        print(f"  {agent_namn} misslyckades: {fel}")
+        spara_tillstand(service, system_mapp_id, {
+            "flode": flode_namn,
+            "pausad_vid_steg": steg_namn,
+            "fel": fel,
+            "extra": extra_context or {},
+        })
+        raise FlodesPausad(f"{agent_namn}: {fel}")
+
+    print(f"  {agent_namn}: {len(svar)} tecken mottagna.")
+    return svar

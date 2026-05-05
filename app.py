@@ -243,7 +243,6 @@ def skriv_route(projekt_id):
     llm_installningar = config.get("llm_per_agent", {})
 
     resultat = {"status": "kor", "utkast": None, "godkant": None}
-
     def kor():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -254,18 +253,20 @@ def skriv_route(projekt_id):
                     uppgift, full_kontext=full_kontext,
                 )
             )
-            if res:
-                resultat["utkast"] = res["utkast"]
-                resultat["godkant"] = res["godkant"]
-                resultat["kapitel_namn"] = res["kapitel_namn"]
-            resultat["status"] = "klar"
+            _flodes_status[projekt_id] = {"status": "klar"}
+        except FlodesPausad as e:
+            _flodes_status[projekt_id] = {
+                "status": "pausad",
+                "fel": str(e),
+            }
         except Exception as e:
             print(f"Fel i skriv-flödet: {e}")
-            resultat["status"] = "fel"
+            _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
         finally:
             loop.close()
 
     rensa_avbryt(projekt_id)
+    _flodes_status[projekt_id] = {"status": "kor"}
     if not starta_trad(projekt_id, kor):
         return jsonify({"status": "upptagen"}), 409
     return jsonify({"status": "startad"})
@@ -385,5 +386,5 @@ def rensa_tillstand_route(projekt_id):
 
 if __name__ == "__main__":
     # app.run(debug=True, port=5000)
-    # app.run(debug=True, use_reloader=False) #För debug
+    # app.run(debug=True, use_reloader=False)
     app.run(debug=False, port=5000)
