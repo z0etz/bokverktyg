@@ -299,75 +299,60 @@ function startaPolling() {
   }, 4000);
 }
 
-function startaFlode(typ, param) {
-  if (flodeStatus === 'pausad') {
-    logg('System', 'Flödesinformation rensad -- tidigare pausat flöde ignoreras.');
-    rensaFlodeStatus();
-  }
-  
-  uppdateraAvbrytKnapp();
-  
-  if (flodeStatus === 'kor') {
-    logg('System', 'Ett flöde körs redan.');
-    return;
-  }
+async function startaFlode(typ, param) {
+    if (flodeStatus === 'kor') {
+        logg('System', 'Ett flöde körs redan.');
+        return;
+    }
 
-  if (typ === 'initiering') {
-    logg('Initiering', param === 'full'
-      ? 'Startar full initiering...'
-      : `Startar ${param}...`);
-    fetch(`/initiering/${projektId}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({steg: param})
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.status === 'startad') {
-        flodeStatus = 'kor';
-        uppdateraAvbrytKnapp();
-        startaPolling();
-      }
-    });
+    flodeStatus = 'kor';
+    uppdateraAvbrytKnapp();
 
-  } else if (typ === 'skriv') {
-    const uppgift = document.getElementById('skriv-uppgift').value.trim();
-    if (!uppgift) { logg('Skriv', 'Ange en uppgift först.'); return; }
-    logg('Skriv', 'Startar...');
-    fetch(`/skriv/${projektId}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({uppgift: uppgift, full_kontext: param})
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.status === 'startad') {
-        flodeStatus = 'kor';
-        uppdateraAvbrytKnapp();
-        startaPolling();
-      }
-    });
+    function hanteraFlosvar(r) {
+        if (r.status === 409) {
+            logg('System', 'Ett flöde körs redan – vänta tills det är klart.');
+            flodeStatus = 'inaktiv';
+            uppdateraAvbrytKnapp();
+            return null;
+        }
+        return r.json();
+    }
 
-  } else if (typ === 'analysera') {
-    const kapitel = document.getElementById('analysera-kapitel').value;
-    if (!kapitel) { logg('Analysera', 'Välj ett kapitel.'); return; }
-    logg('Analysera', `Startar analys av ${kapitel}...`);
-    fetch(`/analysera/${projektId}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({kapitel_namn: kapitel, ignorera_flaggor: param})
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.status === 'startad') {
-        flodeStatus = 'kor';
-        uppdateraAvbrytKnapp();
-        startaPolling();
-      }
-    });
-  }
+    function hanteraStartad(d) {
+        if (d && d.status === 'startad') {
+            startaPolling();
+        }
+    }
+
+    if (typ === 'initiering') {
+        logg('Initiering', param === 'full' ? 'Startar full initiering...' : `Startar ${param}...`);
+        fetch(`/initiering/${projektId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({steg: param})
+        }).then(hanteraFlosvar).then(hanteraStartad);
+
+    } else if (typ === 'skriv') {
+        const uppgift = document.getElementById('skriv-uppgift').value.trim();
+        if (!uppgift) { logg('Skriv', 'Ange en uppgift först.'); flodeStatus = 'inaktiv'; uppdateraAvbrytKnapp(); return; }
+        logg('Skriv', 'Startar...');
+        fetch(`/skriv/${projektId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({uppgift: uppgift, full_kontext: param})
+        }).then(hanteraFlosvar).then(hanteraStartad);
+
+    } else if (typ === 'analysera') {
+        const kapitel = document.getElementById('analysera-kapitel').value;
+        if (!kapitel) { logg('Analysera', 'Välj ett kapitel.'); flodeStatus = 'inaktiv'; uppdateraAvbrytKnapp(); return; }
+        logg('Analysera', `Startar analys av ${kapitel}...`);
+        fetch(`/analysera/${projektId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({kapitel_namn: kapitel, ignorera_flaggor: param})
+        }).then(hanteraFlosvar).then(hanteraStartad);
+    }
 }
-
 function laddaUtkastpar() {
   const select = document.getElementById('analysera-kapitel');
   select.innerHTML = '<option value="">Laddar...</option>';

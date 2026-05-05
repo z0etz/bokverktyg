@@ -20,8 +20,9 @@ from config import (
 app = Flask(__name__)
 app.secret_key = "bokverktyg-hemlig-nyckel"
 
+_flodes_status = {}
+_flodes_lock = threading.Lock()
 _service = None
-
 
 def get_service():
     global _service
@@ -29,6 +30,19 @@ def get_service():
         _service = hamta_drive_tjanst()
     return _service
 
+def starta_trad(projekt_id, target):
+    if not _flodes_lock.acquire(blocking=False):
+        return False
+    
+    def wrapper():
+        try:
+            target()
+        finally:
+            _flodes_lock.release()
+    
+    trad = threading.Thread(target=wrapper)
+    trad.start()
+    return True
 
 @app.route("/")
 def index():
@@ -114,7 +128,6 @@ def initiering_route(projekt_id):
 
     rensa_avbryt(projekt_id)
     _flodes_status[projekt_id] = {"status": "kor"}
-    rensa_tillstand(service, projekt.get("system_mapp_id"))
 
     def kor():
         loop = asyncio.new_event_loop()
@@ -125,6 +138,7 @@ def initiering_route(projekt_id):
                     service, projekt, llm_installningar,
                     endast_steg=steg if steg != "full" else None,
                     projekt_id=projekt_id,
+                    tvinga_nystart=True,
                 )
             )
             if res and res.get("pausad"):
@@ -146,10 +160,9 @@ def initiering_route(projekt_id):
         finally:
             loop.close()
 
-    trad = threading.Thread(target=kor)
-    trad.start()
+    if not starta_trad(projekt_id, kor):
+        return jsonify({"status": "upptagen"}), 409
     return jsonify({"status": "startad"})
-
 
 @app.route("/avbryt/<projekt_id>", methods=["POST"])
 def avbryt_route(projekt_id):
@@ -209,8 +222,8 @@ def aterupptas_route(projekt_id):
             _flodes_status[projekt_id] = {"status": "fel", "fel": str(e)}
         finally:
             loop.close()
-    trad = threading.Thread(target=kor)
-    trad.start()
+    if not starta_trad(projekt_id, kor):
+        return jsonify({"status": "upptagen"}), 409
     return jsonify({"status": "startad"})
 
 @app.route("/skriv/<projekt_id>", methods=["POST"])
@@ -252,12 +265,11 @@ def skriv_route(projekt_id):
         finally:
             loop.close()
 
-    trad = threading.Thread(target=kor)
     rensa_avbryt(projekt_id)
-    _flodes_status[projekt_id] = {"status": "kor"}
-    trad.start()
-
+    if not starta_trad(projekt_id, kor):
+        return jsonify({"status": "upptagen"}), 409
     return jsonify({"status": "startad"})
+
 
 @app.route("/analysera/utkast/<projekt_id>")
 def hamta_utkastpar_route(projekt_id):
@@ -312,10 +324,9 @@ def analysera_route(projekt_id):
         finally:
             loop.close()
 
-    trad = threading.Thread(target=kor)
     rensa_avbryt(projekt_id)
-    _flodes_status[projekt_id] = {"status": "kor"}
-    trad.start()
+    if not starta_trad(projekt_id, kor):
+        return jsonify({"status": "upptagen"}), 409
     return jsonify({"status": "startad"})
 
 _flodes_status = {}
@@ -355,16 +366,24 @@ def knapp_status(projekt_id):
 
 @app.route("/rensa-tillstand/<projekt_id>", methods=["POST"])
 def rensa_tillstand_route(projekt_id):
-    service = get_service()
-    config = lас_config()
-    senaste = config.get("senaste_projekt", {})
-    titel = senaste.get("titel", "Okänt projekt")
-    projekt = ladda_projekt(service, projekt_id, titel)
-    from flows.agent_runner import rensa_tillstand
-    rensa_tillstand(service, projekt.get("system_mapp_id"))
     _flodes_status[projekt_id] = {"status": "okand"}
+    
+    def rensa():
+        try:
+            service = get_service()
+            config = lас_config()
+            senaste = config.get("senaste_projekt", {})
+            titel = senaste.get("titel", "Okänt projekt")
+            projekt = ladda_projekt(service, projekt_id, titel)
+            rensa_tillstand(service, projekt.get("system_mapp_id"))
+            print("Tillstånd rensat på Drive.")
+        except Exception as e:
+            print(f"Kunde inte rensa tillstånd: {e}")
+    
+    threading.Thread(target=rensa, daemon=True).start()
     return jsonify({"ok": True})
 
 if __name__ == "__main__":
     # app.run(debug=True, port=5000)
-    app.run(debug=True, use_reloader=False) #För debug
+    # app.run(debug=True, use_reloader=False) #För debug
+    app.run(debug=False, port=5000)

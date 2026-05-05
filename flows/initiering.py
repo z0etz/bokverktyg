@@ -143,7 +143,7 @@ def _kolla_avbryt(projekt_id, system_mapp_id, service,
 
 async def kor_initiering(service, projekt, llm_installningar,
                           status_callback=None, endast_steg=None,
-                          projekt_id=None):
+                          projekt_id=None, tvinga_nystart=False):
     def status(meddelande):
         print(meddelande)
         if status_callback:
@@ -159,7 +159,7 @@ async def kor_initiering(service, projekt, llm_installningar,
         rensa_tillstand(service, system_mapp_id)
     else:
         avsluta_efter = None
-        tillstand = ladda_tillstand(service, system_mapp_id)
+        tillstand = None if tvinga_nystart else ladda_tillstand(service, system_mapp_id)
         if tillstand and tillstand.get("flode") == "initiering":
             pausad_vid = tillstand.get("pausad_vid_steg")
             hoppa_over = _steg_fore(pausad_vid)
