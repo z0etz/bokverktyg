@@ -53,27 +53,41 @@ async def kor_agent(adapter, prompt, agent_namn,
                     projekt_id=None,
                     dokument_att_bifoga=None,
                     extra_context=None):
-    """
-    Kör ett agentanrop. Om agenten inte svarar sparas tillståndet
-    och FlodesPausad kastas.
-    """
     print(f"\n{agent_namn} arbetar...")
-    await adapter.starta(visa_webblasare=True)
-    await adapter.ny_konversation()
+    try:
+        await adapter.starta(visa_webblasare=True)
+        await adapter.ny_konversation()
 
-    if dokument_att_bifoga and hasattr(adapter, 'bifoga_filer'):
-        print(f"{agent_namn}: Bifogar {list(dokument_att_bifoga.keys())}...")
-        resultat = await adapter.bifoga_filer(dokument_att_bifoga)
-        if isinstance(resultat, dict) and resultat:
-            extra = "\n\n".join(
-                f"## {k.upper()}\n{v}"
-                for k, v in resultat.items()
-            )
-            prompt = prompt + f"\n\n{extra}"
+        if dokument_att_bifoga and hasattr(adapter, 'bifoga_filer'):
+            print(f"{agent_namn}: Bifogar {list(dokument_att_bifoga.keys())}...")
+            resultat = await adapter.bifoga_filer(dokument_att_bifoga)
+            if isinstance(resultat, dict) and resultat:
+                extra = "\n\n".join(
+                    f"## {k.upper()}\n{v}"
+                    for k, v in resultat.items()
+                )
+                prompt = prompt + f"\n\n{extra}"
 
-    svar = await adapter.skicka_meddelande(prompt)
-    senaste_fel = getattr(adapter, 'senaste_fel', None)
-    await adapter.stang()
+        svar = await adapter.skicka_meddelande(prompt)
+        senaste_fel = getattr(adapter, 'senaste_fel', None)
+        await adapter.stang()
+
+    except Exception as e:
+        fel_full = str(e)
+        # Ta bara första raden av felmeddelandet
+        fel = fel_full.split('\n')[0][:120]
+        print(f"  {agent_namn} kraschade: {fel_full}")  # Fullt fel i terminalen
+        try:
+            await adapter.stang()
+        except Exception:
+            pass
+        spara_tillstand(service, system_mapp_id, {
+            "flode": flode_namn,
+            "pausad_vid_steg": steg_namn,
+            "fel": fel,
+            "extra": extra_context or {},
+        })
+        raise FlodesPausad(f"{agent_namn}: {fel}")
 
     if not svar:
         fel = senaste_fel or f"Inget svar från {agent_namn}."
