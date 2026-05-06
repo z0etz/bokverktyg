@@ -77,15 +77,17 @@
     <div id="flode-diskutera" class="flodes-panel" style="display:none;">
       <p class="liten">Diskutera-flödet kommer i nästa milstolpe.</p>
     </div>
-
-    <div class="rad" style="margin-top:1rem; padding-top:0.75rem;
-                             border-top:1px solid #f0efe8;">
-      <button id="avbryt-knapp" class="knapp knapp-sek"
-              onclick="hanteraAvbrytAteruppta()">
-        Avbryt
-      </button>
-    </div>
   </div>
+</div>
+
+<div class="kort" style="display:flex; align-items:center; gap:12px; padding: 0.75rem 1.5rem;">
+  <button id="avbryt-knapp" class="knapp knapp-sek"
+          onclick="hanteraAvbrytAteruppta()">
+    Avbryt
+  </button>
+  <span id="avbryt-info" style="font-size:12px; color:#888;">
+    Avbryter/återupptar pågående flöde.
+  </span>
 </div>
 
 <div class="kort" id="statuslogg-kort" style="display:none;">
@@ -267,6 +269,7 @@ function startaPolling() {
 
         if (s.status === 'klar') {
           clearInterval(aktivPolling);
+          aktivPolling = null;
           flodeStatus = 'inaktiv';
           uppdateraAvbrytKnapp();
           logg(aktivtFlode, 'Klar!');
@@ -275,6 +278,7 @@ function startaPolling() {
 
         if (s.status === 'fel') {
           clearInterval(aktivPolling);
+          aktivPolling = null;
           flodeStatus = 'inaktiv';
           uppdateraAvbrytKnapp();
           logg(aktivtFlode, 'Fel -- kolla terminalen.');
@@ -284,23 +288,36 @@ function startaPolling() {
         if (s.status === 'pausad') {
           clearInterval(aktivPolling);
           aktivPolling = null;
-          flodeStatus = 'pausad';
-          uppdateraAvbrytKnapp();
 
           const orsak = s.fel || '';
           if (orsak === 'Avbrutet av användaren') {
-              logg(aktivtFlode, 'Flödet avbrutet.');
+            logg(aktivtFlode, 'Flödet avbrutet.');
           } else {
-              logg(aktivtFlode, `Pausad: ${orsak || 'okänd orsak'}`);
+            logg(aktivtFlode, `Pausad: ${orsak || 'okänd orsak'}`);
           }
-          logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
-}
+
+          fetch(`/knappstatus/${projektId}`)
+            .then(r => r.json())
+            .then(k => {
+              if (k.har_sparat_tillstand) {
+                flodeStatus = 'pausad';
+                logg(aktivtFlode, 'Tryck Återuppta för att fortsätta.');
+              } else {
+                flodeStatus = 'inaktiv';
+              }
+              uppdateraAvbrytKnapp();
+            })
+            .catch(() => {
+              flodeStatus = 'inaktiv';
+              uppdateraAvbrytKnapp();
+            });
+        }
       });
   }, 4000);
 }
 
 async function startaFlode(typ, param) {
-    if (flodeStatus === 'kor') {
+    if (flodeStatus === 'kor' || flodeStatus === 'avbryter') {
         logg('System', 'Ett flöde körs redan.');
         return;
     }
@@ -353,6 +370,7 @@ async function startaFlode(typ, param) {
         }).then(hanteraFlosvar).then(hanteraStartad);
     }
 }
+
 function laddaUtkastpar() {
   const select = document.getElementById('analysera-kapitel');
   select.innerHTML = '<option value="">Laddar...</option>';

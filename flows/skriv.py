@@ -1,5 +1,6 @@
 import asyncio
-from flows.agent_runner import kor_agent_session, skicka_i_session, FlodesPausad
+from flows.agent_runner import kor_agent_session, skicka_i_session, FlodesPausad, spara_tillstand, rensa_tillstand
+from flows.flodes_state import ar_avbruten
 
 from drive import (
     las_google_doc,
@@ -59,7 +60,8 @@ def hamta_adapter(llm_namn):
 
 async def kor_skriv_flode(service, projekt, llm_installningar,
                            uppgift, full_kontext=False,
-                           max_varv=None, status_callback=None):
+                           max_varv=None, status_callback=None,
+                           aterupptagning=False, sparat_utkast=None, sparat_feedback=None):
     def status(meddelande):
         print(meddelande)
         if status_callback:
@@ -70,9 +72,11 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
         config = lас_config()
         max_varv = config.get("max_redaktor_varv", 3)
 
+    projekt_id = projekt.get("id", "")
+    system_mapp_id = projekt.get("system_mapp_id")
+
     status("Läser projektdokument från Drive...")
     dok = hamta_projektdokument(service, projekt)
-    system_mapp_id = projekt.get("system_mapp_id")
 
     skrivare_llm = llm_installningar.get("skrivaren", "claude")
     redaktor_llm = llm_installningar.get("bokredaktoren", "claude")
@@ -85,106 +89,136 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
     if dok["dramaturgi"]: dokument_att_bifoga["dramaturgi"] = dok["dramaturgi"]
     if dok["kontext"]: dokument_att_bifoga["kontext"] = dok["kontext"]
 
-    # Starta skrivarsession
-    status(f"Startar Skrivaren ({skrivare_llm})...")
-    skrivare = hamta_adapter(skrivare_llm)
-    try:
-        extra = await kor_agent_session(skrivare, dokument_att_bifoga)
-    except Exception as e:
-        fel = str(e).split('\n')[0][:120]
-        raise FlodesPausad(f"Skrivaren: {fel}")
-
-    # Sessionsstart-prompt
-    if full_kontext or behover_full_bokuppdatering(service, system_mapp_id):
-        status("Laddar kontext till Skrivaren...")
-        session_prompt = skrivare_ny_session_prompt_med_filer(
-            boktext_filnamn="bok.txt",
-            stilguide_filnamn="stilguide.txt",
-            karaktarer_filnamn="karaktarer.txt",
-            dramaturgi_filnamn="dramaturgi.txt",
-            kontext_filnamn="kontext.txt",
-            smakprofil=dok["smakprofil"],
-            storyline=dok["storyline"],
-        )
-        if extra:
-            session_prompt += "\n\n" + "\n\n".join(
-                f"## {k.upper()}\n{v}" for k, v in extra.items()
+    if aterupptagning and sparat_utkast:
+        status("Återupptar från sparat utkast...")
+        slutligt_utkast = sparat_utkast
+        if sparat_feedback:
+            # Starta skrivare och revidera direkt
+            status(f"Startar Skrivaren för revidering ({skrivare_llm})...")
+            skrivare = hamta_adapter(skrivare_llm)
+            try:
+                await kor_agent_session(skrivare, dokument_att_bifoga)
+            except Exception as e:
+                fel = str(e).split('\n')[0][:120]
+                raise FlodesPausad(f"Skrivaren: {fel}")
+            
+            revidera_prompt = skrivare_revidera_prompt(
+                utkast=slutligt_utkast,
+                redaktor_feedback=sparat_feedback,
             )
-        try:
-            bekraftelse = await skicka_i_session(
-                skrivare, session_prompt, "Skrivaren",
-                service, system_mapp_id,
-                "skriv", "session_start",
-            )
-            status(f"Skrivaren bekräftade: {bekraftelse[:60]}")
-        except FlodesPausad:
-            await skrivare.stang()
-            raise
-        spara_skrivaren_version(service, system_mapp_id, dok["bok"])
-        andrade_kapitel = None
-    else:
-        andrade_kapitel = hamta_andrade_kapitel(
-            service, system_mapp_id, dok["bok"]
-        )
-        if andrade_kapitel:
-            status("Hittade uppdaterade kapitel sedan senaste session.")
+            try:
+                reviderat = await skicka_i_session(
+                    skrivare, revidera_prompt, "Skrivaren",
+                    service, system_mapp_id, "skriv", "revidera_aterupptagning",
+                )
+            except FlodesPausad:
+                raise
+            slutligt_utkast = reviderat
+            status(f"Skrivaren reviderade ({len(reviderat)} tecken).")
         else:
-            status("Inga ändringar sedan senaste session.")
+            skrivare = None
 
-    # Skriv utkast
-    status("Skrivaren skriver utkast...")
-    if full_kontext:
-        skriva_prompt = skrivare_full_kontext_prompt(
-            uppgift=uppgift,
-            boktext=dok["bok"],
-            stilguide=dok["stilguide"],
-            karaktarer=dok["karaktarer"],
-            dramaturgi=dok["dramaturgi"],
-            kontext=dok["kontext"],
-            smakprofil=dok["smakprofil"],
-            storyline=dok["storyline"],
-        )
-    else:
-        skriva_prompt = skrivare_skriv_prompt(
-            uppgift=uppgift,
-            kontext=dok["kontext"],
-            stilguide=dok["stilguide"],
-            karaktarer=dok["karaktarer"],
-            dramaturgi=dok["dramaturgi"],
-            smakprofil=dok["smakprofil"],
-            storyline=dok["storyline"],
-            andrade_kapitel=andrade_kapitel,
-        )
+        # Sessionsstart-prompt
+        if full_kontext or behover_full_bokuppdatering(service, system_mapp_id):
+            status("Laddar kontext till Skrivaren...")
+            session_prompt = skrivare_ny_session_prompt_med_filer(
+                boktext_filnamn="bok.txt",
+                stilguide_filnamn="stilguide.txt",
+                karaktarer_filnamn="karaktarer.txt",
+                dramaturgi_filnamn="dramaturgi.txt",
+                kontext_filnamn="kontext.txt",
+                smakprofil=dok["smakprofil"],
+                storyline=dok["storyline"],
+            )
+            if extra:
+                session_prompt += "\n\n" + "\n\n".join(
+                    f"## {k.upper()}\n{v}" for k, v in extra.items()
+                )
+            try:
+                bekraftelse = await skicka_i_session(
+                    skrivare, session_prompt, "Skrivaren",
+                    service, system_mapp_id, "skriv", "session_start",
+                )
+                status(f"Skrivaren bekräftade: {bekraftelse[:60]}")
+            except FlodesPausad:
+                raise
+            spara_skrivaren_version(service, system_mapp_id, dok["bok"])
+            andrade_kapitel = None
+        else:
+            andrade_kapitel = hamta_andrade_kapitel(
+                service, system_mapp_id, dok["bok"]
+            )
+            if andrade_kapitel:
+                status("Hittade uppdaterade kapitel sedan senaste session.")
+            else:
+                status("Inga ändringar sedan senaste session.")
 
-    try:
-        utkast = await skicka_i_session(
-            skrivare, skriva_prompt, "Skrivaren",
-            service, system_mapp_id, "skriv", "skriva",
-        )
-    except FlodesPausad:
-        await skrivare.stang()
-        raise
+        # 2. Avbryt-kontroll innan utkast
+        if ar_avbruten(projekt_id):
+            raise FlodesPausad("Avbrutet av användaren")
 
-    status(f"Utkast mottaget ({len(utkast)} tecken).")
+        status("Skrivaren skriver utkast...")
+        if full_kontext:
+            skriva_prompt = skrivare_full_kontext_prompt(
+                uppgift=uppgift,
+                boktext=dok["bok"],
+                stilguide=dok["stilguide"],
+                karaktarer=dok["karaktarer"],
+                dramaturgi=dok["dramaturgi"],
+                kontext=dok["kontext"],
+                smakprofil=dok["smakprofil"],
+                storyline=dok["storyline"],
+            )
+        else:
+            skriva_prompt = skrivare_skriv_prompt(
+                uppgift=uppgift,
+                kontext=dok["kontext"],
+                stilguide=dok["stilguide"],
+                karaktarer=dok["karaktarer"],
+                dramaturgi=dok["dramaturgi"],
+                smakprofil=dok["smakprofil"],
+                storyline=dok["storyline"],
+                andrade_kapitel=andrade_kapitel,
+            )
+
+        try:
+            utkast = await skicka_i_session(
+                skrivare, skriva_prompt, "Skrivaren",
+                service, system_mapp_id, "skriv", "skriva",
+            )
+        except FlodesPausad:
+            raise
+
+        status(f"Utkast mottaget ({len(utkast)} tecken).")
+        slutligt_utkast = utkast
 
     # Starta redaktörssession
     status(f"Startar Bokredaktören ({redaktor_llm})...")
     redaktor = hamta_adapter(redaktor_llm)
-
-    # Redaktören får samma dokument minus bok (inte nödvändig)
     redaktor_dok = {k: v for k, v in dokument_att_bifoga.items() if k != "bok"}
     try:
         extra_red = await kor_agent_session(redaktor, redaktor_dok)
     except Exception as e:
-        await skrivare.stang()
         fel = str(e).split('\n')[0][:120]
         raise FlodesPausad(f"Bokredaktören: {fel}")
 
     godkant = False
-    slutligt_utkast = utkast
     all_feedback = []
+    kapitel_namn = _hamta_kapitelnamn(uppgift)
 
     for varv in range(1, max_varv + 1):
+        # 3. Avbryt-kontroll i början av varje varv
+        if ar_avbruten(projekt_id):
+            await redaktor.stang()
+            spara_tillstand(service, system_mapp_id, {
+                "flode": "skriv",
+                "pausad_vid_steg": "granska",
+                "utkast": slutligt_utkast,
+                "kapitel_namn": kapitel_namn,
+                "uppgift": uppgift,
+            })
+            raise FlodesPausad("Avbrutet av användaren")
+
         status(f"Bokredaktören granskar (varv {varv}/{max_varv})...")
         redaktor_prompt_text = bokredaktor_prompt(
             utkast=slutligt_utkast,
@@ -204,14 +238,13 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
                 service, system_mapp_id, "skriv", f"granska_varv_{varv}",
             )
         except FlodesPausad:
-            await skrivare.stang()
             await redaktor.stang()
             raise
 
         all_feedback.append(f"VARV {varv}:\n{feedback}")
         print(f"Redaktörens feedback (varv {varv}):\n{feedback[:500]}")
 
-        # Extrahera bara beslutsraden
+        # Kontrollera godkännande
         besluts_rad = ""
         for rad in feedback.split('\n'):
             rad_strip = rad.strip()
@@ -227,6 +260,19 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
         status(f"Bokredaktören begär omskrivning (varv {varv}).")
 
         if varv < max_varv:
+            # 4. Avbryt-kontroll innan revidering
+            if ar_avbruten(projekt_id):
+                await redaktor.stang()
+                spara_tillstand(service, system_mapp_id, {
+                    "flode": "skriv",
+                    "pausad_vid_steg": "revidera",
+                    "utkast": slutligt_utkast,
+                    "senaste_feedback": feedback,
+                    "kapitel_namn": kapitel_namn,
+                    "uppgift": uppgift,
+                })
+                raise FlodesPausad("Avbrutet av användaren")
+
             revidera_prompt = skrivare_revidera_prompt(
                 utkast=slutligt_utkast,
                 redaktor_feedback=feedback,
@@ -237,7 +283,6 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
                     service, system_mapp_id, "skriv", f"revidera_varv_{varv}",
                 )
             except FlodesPausad:
-                await skrivare.stang()
                 await redaktor.stang()
                 raise
             slutligt_utkast = reviderat
@@ -245,11 +290,10 @@ async def kor_skriv_flode(service, projekt, llm_installningar,
         else:
             status(f"Max antal varv ({max_varv}) nått utan godkännande.")
 
-    await skrivare.stang()
     await redaktor.stang()
+    rensa_tillstand(service, system_mapp_id)
 
     # Spara utkast
-    kapitel_namn = _hamta_kapitelnamn(uppgift)
     utkast_mapp_id = projekt["mappar"].get("utkast")
     if utkast_mapp_id:
         befintlig_id = hamta_fil_id(service, kapitel_namn, utkast_mapp_id)

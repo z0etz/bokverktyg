@@ -200,6 +200,16 @@ def aterupptas_route(projekt_id):
                         service, projekt, llm_installningar,
                         projekt_id=projekt_id,
                     )
+                )  
+            elif flode == "skriv":
+                res = loop.run_until_complete(
+                    kor_skriv_flode(
+                        service, projekt, llm_installningar,
+                        uppgift=tillstand.get("uppgift", ""),
+                        aterupptagning=True,
+                        sparat_utkast=tillstand.get("utkast"),
+                        sparat_feedback=tillstand.get("senaste_feedback"),
+                    )
                 )
             else:
                 res = {"klar": True}
@@ -247,7 +257,12 @@ def skriv_route(projekt_id):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            res = loop.run_until_complete(
+            try:
+                rensa_tillstand(service, projekt.get("system_mapp_id"))
+            except Exception as e:
+                print(f"Kunde inte rensa tillstånd: {e}")
+
+            loop.run_until_complete(
                 kor_skriv_flode(
                     service, projekt, llm_installningar,
                     uppgift, full_kontext=full_kontext,
